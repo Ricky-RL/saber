@@ -62,8 +62,9 @@ export function Block({
   labelA = 'T',
   labelB = 'F',
   size = [1.3, 1.3, 1.3],
-  showHitbox = false
-}: BlockProps) {
+  showHitbox = false,
+  hitboxSize // New Prop
+}: BlockProps & { hitboxSize?: [number, number, number] }) {
   const groupRef = useRef<THREE.Group>(null!)
   const innerMeshRef = useRef<any>(null!) 
   const textRef = useRef<THREE.Group>(null!)
@@ -180,7 +181,7 @@ export function Block({
           <group 
             ref={groupRef} 
             rotation={initialRotation as [number, number, number]}
-            userData={{ isBlock: true, id, isCorrect }} 
+            userData={{ isBlock: true, id, isCorrect, size, hitboxSize }} 
           >
             {/* BIGGER BOX + SPIN */}
             <group ref={innerMeshRef}>
@@ -197,21 +198,21 @@ export function Block({
 
                 {/* Text on ALL FACES */}
                 {/* Front */}
-                <Text position={[0, 0, 0.66]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">{text}</Text>
+                <Text position={[0, 0, 0.66]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.08} outlineColor="black">{text}</Text>
                 {/* Back */}
-                <Text position={[0, 0, -0.66]} rotation={[0, Math.PI, 0]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">{text}</Text>
+                <Text position={[0, 0, -0.66]} rotation={[0, Math.PI, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.08} outlineColor="black">{text}</Text>
                 {/* Top */}
-                <Text position={[0, 0.66, 0]} rotation={[-Math.PI/2, 0, 0]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">{text}</Text>
+                <Text position={[0, 0.66, 0]} rotation={[-Math.PI/2, 0, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.08} outlineColor="black">{text}</Text>
                 {/* Bottom */}
-                <Text position={[0, -0.66, 0]} rotation={[Math.PI/2, 0, 0]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">{text}</Text>
+                <Text position={[0, -0.66, 0]} rotation={[Math.PI/2, 0, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.08} outlineColor="black">{text}</Text>
                 {/* Left */}
-                <Text position={[-0.66, 0, 0]} rotation={[0, -Math.PI/2, 0]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">{text}</Text>
+                <Text position={[-0.66, 0, 0]} rotation={[0, -Math.PI/2, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.08} outlineColor="black">{text}</Text>
             {/* Right */}
-            <Text position={[0.66, 0, 0]} rotation={[0, Math.PI/2, 0]} fontSize={0.8} color="white" anchorX="center" anchorY="middle">{text}</Text>
+            <Text position={[0.66, 0, 0]} rotation={[0, Math.PI/2, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.08} outlineColor="black">{text}</Text>
         </group>
 
         {/* Debug Hitbox for Pair (Rotated with group) */}
-        <DebugHitbox size={[1.3, 1.3, 1.3]} visible={showHitbox} />
+        <DebugHitbox size={hitboxSize || [1.3, 1.3, 1.3]} visible={showHitbox} />
 
       </group>
     </group>
@@ -225,7 +226,7 @@ export function Block({
         ref={groupRef} 
         visible={!invisible || showHitbox} // Visibile if not hidden OR debug enabled
         rotation={initialRotation as [number, number, number]}
-        userData={{ isBlock: true, id, isCorrect, size }} 
+        userData={{ isBlock: true, id, isCorrect, size, hitboxSize }} 
       >
         {/* BIGGER BOX or Custom Size */}
         <RoundedBox ref={innerMeshRef} args={size} radius={0.2} smoothness={4}>
@@ -245,17 +246,19 @@ export function Block({
         {!invisible && (
           <Text
               position={[0, 0, (size[2]/2) + 0.01]} 
-              fontSize={0.7} 
+              fontSize={0.6} // Reduced from 0.9 to match style better (was "too big")
               color="white"
               anchorX="center"
               anchorY="middle"
+              outlineWidth={0.08}
+              outlineColor="black"
           >
               {text}
           </Text>
         )}
 
         {/* Debug Hitbox for Generic/MCQ/Invisible */}
-        <DebugHitbox size={size} visible={showHitbox} />
+        <DebugHitbox size={hitboxSize || size} visible={showHitbox} />
         
       </group>
     </group>

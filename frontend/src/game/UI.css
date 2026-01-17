@@ -17,8 +17,14 @@
   width: 100%;
   padding: 2rem;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start; /* Changed from space-between */
   align-items: flex-start;
+}
+
+.stats-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .score-box {
@@ -29,7 +35,7 @@
 .combo-box {
   color: var(--neon-magenta);
   text-shadow: 0 0 10px rgba(255, 0, 255, 0.8);
-  text-align: right;
+  text-align: left; /* changed from right */
 }
 
 .stat-value {

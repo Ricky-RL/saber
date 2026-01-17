@@ -47,8 +47,8 @@ export function QuestionHeader({
   return (
     <group ref={groupRef} position={[0, 3.5, initialZ]}>
         <Html transform center position={[0, 0, 0]} style={{ pointerEvents: 'none' }}>
-            <div className="question-container" style={{ width: '500px', transform: 'scale(1.5)' }}>
-                <h3 className="question-text" style={{ fontSize: '1.5rem' }}>
+            <div className="question-container" style={{ width: '500px', transform: 'scale(1.5)', fontFamily: "'Orbitron', sans-serif" }}>
+                <h3 className="question-text" style={{ fontSize: '1.5rem', textShadow: '0 0 10px white' }}>
                     {text}
                 </h3>
             </div>

@@ -11,10 +11,18 @@ export function UI() {
     <div className="saber-ui">
       
       {/* HUD - Top */}
+      {/* HUD - Top */}
       <div className="hud-top">
-        <div className="score-box">
-            <h2 className="stat-value">{score.toLocaleString()}</h2>
-            <p className="stat-label">SCORE</p>
+        <div className="stats-container">
+            <div className="score-box">
+                <h2 className="stat-value">{score.toLocaleString()}</h2>
+                <p className="stat-label">SCORE</p>
+            </div>
+            
+            <div className="combo-box">
+                <h2 className="stat-value">x{combo}</h2>
+                <p className="stat-label">COMBO</p>
+            </div>
         </div>
 
         {/* LAST ANSWER FEEDBACK */}
@@ -28,7 +36,7 @@ export function UI() {
                     style={{ 
                         position: 'absolute', 
                         top: '20px', 
-                        left: '140px', // Right of Score
+                        left: '200px', // Right of Stats (Shifted right due to width of stats)
                         color: '#00ffff',
                         fontFamily: "'Orbitron', sans-serif", // Assume same font as checks
                         fontSize: '2rem',
@@ -39,11 +47,6 @@ export function UI() {
                 </motion.div>
             )}
         </AnimatePresence>
-
-        <div className="combo-box">
-            <h2 className="stat-value">x{combo}</h2>
-            <p className="stat-label">COMBO</p>
-        </div>
       </div>
 
       {/* Main Menu */}
