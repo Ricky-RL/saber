@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Zap, 
   FileText, 
@@ -20,13 +20,20 @@ const recentDocs = [
 ];
 
 const studyCalendar = (() => {
-  const days = [];
-  for (let i = 0; i < 91; i++) {
-    const hasStudy = Math.random() > 0.4;
-    const intensity = hasStudy ? Math.floor(Math.random() * 4) + 1 : 0;
-    days.push(intensity);
+  // Generate 6 months of data
+  const months = [];
+  for (let m = 0; m < 6; m++) {
+    const days = [];
+    // 4 weeks * 7 days = 28 days per block for clean grid
+    for (let i = 0; i < 28; i++) {
+      const hasStudy = Math.random() > 0.4;
+      const intensity = hasStudy ? Math.floor(Math.random() * 4) + 1 : 0;
+      const gamesPlayed = hasStudy ? Math.floor(Math.random() * 10) + 1 : 0;
+      days.push({ intensity, gamesPlayed });
+    }
+    months.push(days);
   }
-  return days;
+  return months;
 })();
 
 const getIntensityColor = (intensity: number) => {
@@ -42,6 +49,22 @@ const getIntensityColor = (intensity: number) => {
 
 export default function Home() {
   const [dailyQuizMode, setDailyQuizMode] = useState<'quiz' | 'game' | null>(null);
+  const [hoveredDay, setHoveredDay] = useState<{ index: number; monthIndex: number; gamesPlayed: number; x: number; y: number } | null>(null);
+
+  const handleMouseEnter = (monthIndex: number, dayIndex: number, gamesPlayed: number, e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredDay({ 
+      index: dayIndex, 
+      monthIndex,
+      gamesPlayed, 
+      x: rect.left + rect.width / 2, 
+      y: rect.top - 10 
+    });
+  };
+
+  const handleMouseLeave = () => {
+    setHoveredDay(null);
+  };
 
   return (
     <div className="min-h-screen relative overflow-hidden text-foreground">
@@ -49,6 +72,33 @@ export default function Home() {
       
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-neon-cyan/10 rounded-full blur-[100px]" />
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-neon-magenta/10 rounded-full blur-[100px]" />
+
+      {/* Hover Tooltip */}
+      <AnimatePresence>
+        {hoveredDay && (
+          <motion.div
+            initial={{ opacity: 0, y: 10, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            style={{ 
+              position: 'fixed', 
+              left: hoveredDay.x, 
+              top: hoveredDay.y,
+              transform: 'translate(-50%, -100%)',
+              zIndex: 50
+            }}
+            className="pointer-events-none mb-2"
+          >
+            <div className="glass-card px-4 py-2 rounded-lg border-neon-cyan/50 box-glow-cyan bg-black/80 backdrop-blur-xl">
+              <p className="font-display text-xs text-neon-cyan whitespace-nowrap">
+                GAMES PLAYED: <span className="text-white font-bold text-sm ml-1">{hoveredDay.gamesPlayed}</span>
+              </p>
+            </div>
+            {/* Arrow */}
+            <div className="w-2 h-2 bg-neon-cyan/50 rotate-45 absolute left-1/2 -bottom-1 -translate-x-1/2" />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <nav className="relative z-10 flex items-center justify-between px-8 py-6">
         <Link to="/">
@@ -233,35 +283,53 @@ export default function Home() {
                   <span className="text-xs text-muted-foreground">Less</span>
                   <div className="flex gap-1">
                     {[0, 1, 2, 3, 4].map((i) => (
-                      <div key={i} className={`w-3 h-3 rounded-sm ${getIntensityColor(i)}`} />
+                      <div key={i} className={`w-2.5 h-2.5 rounded-[2px] ${getIntensityColor(i)}`} />
                     ))}
                   </div>
                   <span className="text-xs text-muted-foreground">More</span>
                 </div>
               </div>
               
-              <div className="grid grid-cols-13 gap-1">
-                {studyCalendar.map((intensity, index) => (
-                  <motion.div
-                    key={index}
-                    data-testid={`calendar-day-${index}`}
-                    className={`w-3 h-3 rounded-sm ${getIntensityColor(intensity)} transition-all hover:scale-150`}
-                    initial={{ opacity: 0, scale: 0 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: index * 0.005 }}
-                  />
+              {/* 
+                CALENDAR STYLING GUIDE:
+                - Layout: Flex container for separate month blocks.
+                - Blocks: Each month is a grid (7 rows x N cols).
+                - Cell Style: 'w-2.5 h-2.5' (size) 'rounded-[2px]' (shape).
+                - Spacing: 'gap-4' between months, 'gap-[2px]' between cells.
+              */}
+              <div className="flex gap-4">
+                {studyCalendar.map((month, mIndex) => (
+                  <div key={mIndex} className="grid grid-rows-7 grid-flow-col gap-[2px]">
+                    {month.map((day, dIndex) => (
+                      <motion.div
+                        key={`${mIndex}-${dIndex}`}
+                        data-testid={`calendar-day-${mIndex}-${dIndex}`}
+                        className={`w-2.5 h-2.5 rounded-[2px] ${getIntensityColor(day.intensity)} transition-all cursor-crosshair`}
+                        initial={{ opacity: 0, scale: 0 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: (mIndex * 30 + dIndex) * 0.005 }}
+                        whileHover={{ scale: 1.4, zIndex: 10, borderColor: 'white', borderWidth: 1 }}
+                        onMouseEnter={(e) => handleMouseEnter(mIndex, dIndex, day.gamesPlayed, e)}
+                        onMouseLeave={handleMouseLeave}
+                      />
+                    ))}
+                  </div>
                 ))}
               </div>
 
               <div className="mt-6 pt-4 border-t border-border">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="text-center">
-                    <p className="font-display text-2xl font-bold text-neon-cyan">156</p>
-                    <p className="text-xs text-muted-foreground">Questions Answered</p>
+                    <p className="font-display text-xl font-bold text-neon-cyan">156</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Questions</p>
                   </div>
                   <div className="text-center">
-                    <p className="font-display text-2xl font-bold text-neon-pink">87%</p>
-                    <p className="text-xs text-muted-foreground">Accuracy</p>
+                    <p className="font-display text-xl font-bold text-neon-pink">87%</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Accuracy</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="font-display text-xl font-bold text-neon-purple">x42</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Best Combo</p>
                   </div>
                 </div>
               </div>
@@ -284,6 +352,11 @@ export default function Home() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Total Documents</span>
                   <span className="font-display text-neon-purple">12</span>
+                </div>
+                {/* Added Best Combo to Quick Stats as requested */}
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Best Combo</span>
+                  <span className="font-display text-neon-cyan">x42</span>
                 </div>
               </div>
             </div>
