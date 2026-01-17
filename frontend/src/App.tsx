@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import { AuthProvider } from './contexts/Auth';
 import ProtectedRoute from './components/ProtectedRoute';
 import GamePage from './game/GamePage';
+import AvatarPage from './pages/Avatar';
 
 function App() {
   return (
@@ -22,7 +23,8 @@ function App() {
             }
           />
           <Route path="/game" element={<GamePage />} />
-      </Routes>
+          <Route path="/avatar" element={<AvatarPage />} />
+        </Routes>
       </BrowserRouter>
     </AuthProvider>
   );

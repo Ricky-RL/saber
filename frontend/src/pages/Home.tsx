@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { useAuth } from '../contexts/Auth';
+import { supabase } from '../supabaseClient'; // Added import for supabase
 import LoginModal from '../components/LoginModal';
 import { 
   Zap, 
@@ -54,8 +55,20 @@ export default function Home() {
   const navigate = useNavigate();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
-  const handleProfileClick = () => {
+  const handleProfileClick = async () => {
+    // Fire-and-forget call to backend logging
     if (user) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.access_token) {
+          fetch('http://127.0.0.1:8000/api/log-profile-visit', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`
+            }
+          }).catch(err => console.error('Failed to log profile visit:', err));
+        }
+      });
+      
       navigate('/profile');
     } else {
       setIsLoginModalOpen(true);
@@ -141,7 +154,11 @@ export default function Home() {
             whileTap={{ scale: 0.98 }}
           >
             <User className="w-4 h-4" />
-            {user ? 'Profile' : 'Sign In'}
+            {user ? (
+              <span className="font-bold text-neon-cyan">
+                {user.user_metadata?.full_name || user.email}
+              </span>
+            ) : 'Sign In'}
           </motion.button>
         </div>
       </nav>
