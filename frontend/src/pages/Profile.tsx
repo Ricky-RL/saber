@@ -13,8 +13,8 @@ import {
   Play, 
   ChevronLeft,
   Search,
-  // Trophy,
-  // Target,
+  Trophy,
+  Target,
   Check,
   X,
   Upload,
@@ -23,7 +23,7 @@ import {
   Eye
 } from 'lucide-react';
 
-/* const quizHistory = [
+const quizHistory = [
   { id: 1, type: 'game', doc: 'Biology Chapter 5', score: 2450, accuracy: 88, date: '2 hours ago', streak: 12 },
   { id: 2, type: 'quiz', doc: 'Physics Formulas', score: 16, accuracy: 89, date: '1 day ago', total: 18 },
   { id: 3, type: 'game', doc: 'World History - WWI', score: 1890, accuracy: 75, date: '2 days ago', streak: 8 },
@@ -191,7 +191,7 @@ export default function Profile() {
             MY DOCUMENTS
           </motion.button>
           
-          {/* <motion.button
+          <motion.button
             data-testid="tab-history"
             onClick={() => setActiveTab('history')}
             className={`font-display text-lg font-bold px-6 py-3 rounded-lg transition-all ${
@@ -203,7 +203,7 @@ export default function Profile() {
             whileTap={{ scale: 0.98 }}
           >
             QUIZ HISTORY
-          </motion.button> */}
+          </motion.button>
         </div>
 
         <AnimatePresence mode="wait">
@@ -356,7 +356,7 @@ export default function Profile() {
             </motion.div>
           )}
 
-          {/* {activeTab === 'history' && (
+          {activeTab === 'history' && (
             <motion.div
               key="history"
               initial={{ opacity: 0, y: 20 }}
@@ -444,7 +444,7 @@ export default function Profile() {
                 ))}
               </div>
             </motion.div>
-          )} */}
+          )}
         </AnimatePresence>
       </main>
     </div>
