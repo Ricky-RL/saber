@@ -5,7 +5,7 @@ import base64
 import uuid
 import json
 import requests
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from config import OPENROUTER_API_KEY
 from dotenv import load_dotenv
 import os
@@ -52,7 +52,10 @@ def generate_quiz_from_pdf(document_id: str, pdf_base64: str) -> str:
                 "content": (
                     "You are a quiz generation engine. "
                     "You must output ONLY valid JSON. "
-                    "No markdown. No explanations. No extra text."
+                    "No markdown. No explanations. No extra text. "
+                    "CRITICAL: All answers and ALL options MUST be 1-4 words MAXIMUM. "
+                    "Count every single word - answers longer than 4 words will break the game! "
+                    "Use noun phrases only, remove verbs and filler words."
                 ),
             },
             {
@@ -63,35 +66,18 @@ def generate_quiz_from_pdf(document_id: str, pdf_base64: str) -> str:
                         "text": f"""
 Generate a quiz from the uploaded document.
 
-CRITICAL RULES:
-- Output must be STRICT valid JSON
-- Top-level fields:
-  - document_id
-  - questions
-- Each question must include:
-  - id
-  - type ("mcq" or "true_false")
-  - question
-  - options (ONLY for mcq, exactly 4 strings)
-  - correct_answer
+JSON Format:
+- document_id, genre (1-2 words describing subject/topic), questions[]
+- Each question: id, type ("mcq" or "true_false"), question, options (4 for mcq), correct_answer
 
-ANSWER LENGTH RESTRICTIONS (VERY IMPORTANT):
-- ALL answers (correct_answer and all options) MUST be 1-4 words maximum
-- Answers must be SHORT and fit in small blocks
-- Examples of good answers: "Regression testing", "Test selection", "True", "All types"
-- Examples of BAD answers: "To ensure that recent code revisions have not introduced new faults" (too long!)
-- Keep options concise - they also need to fit in blocks
+CRITICAL WORD LIMIT: ALL answers and ALL options MUST be 1-4 words MAXIMUM. Count every word!
+Bad: "Ensuring revisions don't inject faults" (6 words) → Use: "Prevent fault injection" (3 words)
+Bad: "Return to former state" (4 words) → Use: "State regression" (2 words)
+Bad: "Ranking tests by importance" (4 words) → Use: "Test prioritization" (2 words)
+Use noun phrases only. Remove verbs, articles, prepositions. Maximum 4 words - if longer, shorten it!
 
-QUESTION DISTRIBUTION:
-- Aim for a balanced mix of MCQ and true/false questions (approximately equal distribution)
-- Generate at least 10 questions, but can generate more if content allows
-- If you run out of meaningful content, stop (no minimum requirement)
-- Make questions clear, concise, and directly related to the document content
-
-OTHER RULES:
-- True/False questions must use boolean true/false for correct_answer
-- Do NOT include explanations
-- Questions should be clear and test understanding of key concepts
+Distribution: Balanced MCQ/true-false mix. At least 10 questions (more if content allows).
+True/false: Use boolean true/false for correct_answer.
 
 Document ID: {document_id}
 """,
@@ -128,14 +114,16 @@ Document ID: {document_id}
 
 
 @router.post("/generate-quiz")
-async def generate_quiz(file: UploadFile = File(...)):
+async def generate_quiz(file: UploadFile = File(...), user_id: str = Form(...)):
     """
     Generate a quiz from an uploaded PDF file.
     
-    Accepts a PDF file and returns a JSON quiz with:
+    Accepts a PDF file and user_id, returns a JSON quiz with:
     - Balanced mix of multiple choice questions (4 options each) and true/false questions
     - At least 10 questions (more if content allows)
     - All answers are 1-4 words maximum to fit in game blocks
+    - Genre/subject area (1-2 words)
+    - User ID included in response
     """
     
     if file.content_type != "application/pdf":
@@ -150,6 +138,10 @@ async def generate_quiz(file: UploadFile = File(...)):
         
         # Parse the JSON string to ensure it's valid before returning
         quiz_data = json.loads(quiz_json_str)
+        
+        # Add user_id to response (not passed to LLM)
+        quiz_data["user_id"] = user_id
+        
         return quiz_data
         
     except json.JSONDecodeError as e:
