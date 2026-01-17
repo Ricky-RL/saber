@@ -1,6 +1,10 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '../contexts/Auth';
+import { supabase } from '../supabaseClient';
+import UploadModal from '../components/UploadModal';
+import PreviewModal from '../components/PreviewModal';
 import { 
   Zap, 
   FileText, 
@@ -14,17 +18,10 @@ import {
   Check,
   X,
   Upload,
-  Clock
+  Clock,
+  LogOut,
+  Eye
 } from 'lucide-react';
-
-const documents = [
-  { id: 1, name: 'Biology Chapter 5 - Cell Division', questions: 24, created: 'Jan 5, 2026', lastStudied: '2 hours ago', accuracy: 85 },
-  { id: 2, name: 'Physics Formulas - Mechanics', questions: 18, created: 'Jan 3, 2026', lastStudied: '1 day ago', accuracy: 92 },
-  { id: 3, name: 'World History - WWI', questions: 32, created: 'Dec 28, 2025', lastStudied: '2 days ago', accuracy: 78 },
-  { id: 4, name: 'Chemistry Review - Organic', questions: 15, created: 'Dec 20, 2025', lastStudied: '3 days ago', accuracy: 88 },
-  { id: 5, name: 'Calculus - Derivatives', questions: 28, created: 'Dec 15, 2025', lastStudied: '5 days ago', accuracy: 95 },
-  { id: 6, name: 'Literature - Shakespeare', questions: 20, created: 'Dec 10, 2025', lastStudied: '1 week ago', accuracy: 82 },
-];
 
 const quizHistory = [
   { id: 1, type: 'game', doc: 'Biology Chapter 5', score: 2450, accuracy: 88, date: '2 hours ago', streak: 12 },
@@ -34,13 +31,61 @@ const quizHistory = [
   { id: 5, type: 'game', doc: 'Calculus - Derivatives', score: 3200, accuracy: 96, date: '4 days ago', streak: 18 },
 ];
 
+interface Document {
+  id: string;
+  name: string;
+  questions: number;
+  created_at: string;
+  accuracy: number;
+  file_path: string; // Add file_path to interface
+  file_type: string; // Add file_type to interface
+}
+
 export default function Profile() {
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'documents' | 'history'>('documents');
   const [searchQuery, setSearchQuery] = useState('');
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
 
-  const startEdit = (id: number, name: string) => {
+  useEffect(() => {
+    if (user) {
+      fetchDocuments();
+    }
+  }, [user]);
+
+  const fetchDocuments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        // Map data to match the interface, assuming some defaults for now for missing fields
+        const mappedDocs: Document[] = data.map(doc => ({
+          id: doc.id,
+          name: doc.name,
+          questions: doc.questions || 0,
+          created_at: new Date(doc.created_at).toLocaleDateString(),
+          accuracy: 0, // Placeholder as it's not in the DB yet
+          file_path: doc.file_path,
+          file_type: doc.file_type
+        }));
+        setDocuments(mappedDocs);
+      }
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    }
+  };
+
+  const startEdit = (id: string, name: string) => {
     setEditingId(id);
     setEditName(name);
   };
@@ -50,12 +95,43 @@ export default function Profile() {
     setEditName('');
   };
 
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this document?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('documents')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      fetchDocuments();
+    } catch (error) {
+      console.error('Error deleting document:', error);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
+
   const filteredDocs = documents.filter(doc => 
     doc.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
     <div className="min-h-screen relative overflow-hidden text-foreground">
+      <UploadModal 
+        isOpen={isUploadModalOpen} 
+        onClose={() => setIsUploadModalOpen(false)}
+        onUploadComplete={fetchDocuments}
+      />
+      <PreviewModal
+        isOpen={!!previewDoc}
+        onClose={() => setPreviewDoc(null)}
+        document={previewDoc}
+      />
       <div className="absolute inset-0 grid-lines opacity-30" />
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-neon-purple/10 rounded-full blur-[100px]" />
 
@@ -83,6 +159,19 @@ export default function Profile() {
               </h1>
             </div>
           </Link>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="text-right mr-2 hidden sm:block">
+             <div className="text-sm font-medium text-foreground">{user?.email}</div>
+          </div>
+          <button
+            onClick={handleSignOut}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
         </div>
       </nav>
 
@@ -140,6 +229,7 @@ export default function Profile() {
                 </div>
                 
                 <motion.button
+                  onClick={() => setIsUploadModalOpen(true)}
                   data-testid="button-upload"
                   className="neon-button px-5 py-3 rounded-xl font-ui font-medium flex items-center gap-2"
                   whileHover={{ scale: 1.02 }}
@@ -151,6 +241,11 @@ export default function Profile() {
               </div>
 
               <div className="space-y-3">
+                {filteredDocs.length === 0 && (
+                  <div className="text-center py-10 text-muted-foreground">
+                    <p>No documents found. Upload one to get started!</p>
+                  </div>
+                )}
                 {filteredDocs.map((doc, index) => (
                   <motion.div
                     key={doc.id}
@@ -198,7 +293,7 @@ export default function Profile() {
                                 {doc.name}
                               </h3>
                               <p className="text-sm text-muted-foreground">
-                                {doc.questions} questions • Created {doc.created}
+                                {doc.questions} questions • {doc.created_at}
                               </p>
                             </>
                           )}
@@ -213,6 +308,16 @@ export default function Profile() {
                         
                         <div className="flex items-center gap-2">
                           <motion.button
+                            onClick={() => setPreviewDoc(doc)}
+                            className="p-2 rounded-lg text-muted-foreground hover:text-neon-cyan hover:bg-neon-cyan/10 transition-colors"
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            title="Preview Document"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </motion.button>
+
+                          <motion.button
                             data-testid={`button-edit-${doc.id}`}
                             onClick={() => startEdit(doc.id, doc.name)}
                             className="p-2 rounded-lg text-muted-foreground hover:text-neon-cyan hover:bg-neon-cyan/10 transition-colors"
@@ -223,6 +328,7 @@ export default function Profile() {
                           </motion.button>
                           
                           <motion.button
+                            onClick={() => handleDelete(doc.id)}
                             data-testid={`button-delete-${doc.id}`}
                             className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                             whileHover={{ scale: 1.1 }}
