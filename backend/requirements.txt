@@ -2,3 +2,6 @@ fastapi
 uvicorn
 supabase
 python-dotenv
+websockets
+PyJWT
+httpx
