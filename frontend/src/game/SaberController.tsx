@@ -100,7 +100,7 @@ export function SaberController({ side, color, isPaused = false }: SaberControll
   })
 
   return (
-    <group ref={groupRef} userData={{ isSaber: true, side }}>
+    <group ref={groupRef} userData={{ isSaber: true, side, color }}>
        {/* Reverted to High Quality Saber Model with Trails built-in */}
        <Lightsaber 
          color={color} 

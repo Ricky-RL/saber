@@ -114,10 +114,6 @@ function GamePage() {
               zIndex: 20,
               position: 'relative' 
           }}>
-              <h1 style={{ fontSize: '3rem', marginBottom: '20px' }}>
-                  <span style={{ color: '#00ffff' }}>VISION</span>
-                  <span style={{ color: '#ff00ff' }}>SABER</span>
-              </h1>
               
               <p style={{ marginBottom: '20px' }}>
                 {loading ? 'Loading...' : 'Upload a song to generate a level'}

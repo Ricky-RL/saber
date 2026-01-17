@@ -6,7 +6,7 @@ import * as THREE from 'three'
 import { Block } from './Block'
 
 // TOGGLE THIS TO SEE HITBOXES
-const DEBUG_SHOW_HITBOXES = true 
+const DEBUG_SHOW_HITBOXES = false 
 
 import { SaberController } from './SaberController'
 import { useGameStore } from './GameManager'
@@ -161,7 +161,7 @@ function GameLoop() {
           }
       })
 
-      const hitsToProcess: { id: string, vel: number, pos: THREE.Vector3 }[] = []
+      const hitsToProcess: { id: string, vel: number, pos: THREE.Vector3, saberColor?: string }[] = []
 
       scene.traverse((obj) => {
           // Check if it's a block Group
@@ -187,8 +187,9 @@ function GameLoop() {
                       ]
                       const saberVel = saber.userData.velocity as THREE.Vector3
                       
-                      // Filter low velocity (must swing) - DISABLED per user request for "Static Hit"
-                      // if (saberVel.length() < 0.5) return 
+                      // 1. VELOCITY CHECK: Prevent "holding" saber inside block
+                      // Saber must be moving reasonably fast to register a hit.
+                      if (saberVel.length() < 2.0) return
 
                       let isHit = false
                       for (const pt of hitPoints) {
@@ -206,15 +207,22 @@ function GameLoop() {
                       }
                       
                       if (isHit) {
+                          // 2. COLOR MATCHING: Prevent wrong saber from hitting coded blocks
+                          // White (visual/MCQ often) or special colors might allow both, 
+                          // but for T/F Pair/Split which use Magenta/Cyan, we enforce match.
+                          
+                          const saberColor = saber.userData.color // Expecting '#ff00ff' or '#00ffff'
+                          // Logic moved to handleCollision to allow "Wrong Hit" registration
+                          
                           obj.userData.hit = true // Tag as hit so we don't double hit
-                          hitsToProcess.push({ id: blockId, vel: saberVel.x, pos: blockPos })
+                          hitsToProcess.push({ id: blockId, vel: saberVel.x, pos: blockPos, saberColor: saberColor })
                       }
                   })
               }
           }
       })
       
-      hitsToProcess.forEach(hit => handleCollision(hit.id, hit.vel, hit.pos))
+      hitsToProcess.forEach(hit => handleCollision(hit.id, hit.vel, hit.pos, hit.saberColor))
   })
 
   // Spawn Logic Helper
@@ -245,11 +253,20 @@ function GameLoop() {
          // Randomize Order (Left/Right)
          const isReversed = Math.random() > 0.5 
          
+         // Randomize Pair Position (Center, Left, Right)
+         // Default Center: [-1.2, 1.2]
+         // Left Shift: [-2.2, 0.2] (Offset -1.0)
+         // Right Shift: [-0.2, 2.2] (Offset +1.0)
+         const rand = Math.random()
+         let xOffset = 0
+         if (rand < 0.33) xOffset = -1.0 // Left
+         else if (rand > 0.66) xOffset = 1.0 // Right
+         
          // Left Block (Pink)
          newBlocks.push({
              id: `${question.id}_left_pair`,
              questionId: question.id, // Explicit ID
-             position: [-1.2, SPAWN_Y, -30], 
+             position: [-1.2 + xOffset, SPAWN_Y, -30], 
              color: '#ff00ff', // Pink/Magenta for Left
              text: isReversed ? question.content.answers?.[1].text : question.content.answers?.[0].text, 
              type: 'true_false_pair',
@@ -262,7 +279,7 @@ function GameLoop() {
          newBlocks.push({
              id: `${question.id}_right_pair`,
              questionId: question.id, // Explicit ID
-             position: [1.2, SPAWN_Y, -30],
+             position: [1.2 + xOffset, SPAWN_Y, -30],
              color: '#00ffff', // Cyan/Blue for Right
              text: isReversed ? question.content.answers?.[0].text : question.content.answers?.[1].text,
              type: 'true_false_pair',
@@ -385,7 +402,7 @@ function GameLoop() {
 
 
 
-  const handleCollision = (blockId: string, _velX: number, hitPos: THREE.Vector3) => {
+  const handleCollision = (blockId: string, _velX: number, hitPos: THREE.Vector3, saberColor?: string) => {
       const block = blocks.find(b => b.id === blockId)
       if (!block) return
       
@@ -402,8 +419,28 @@ function GameLoop() {
 
       // Logic for Split Block
       let isCorrect = block.isCorrect
-      // (Split logic removed - now handled by invisible hitboxes with intrinsic isCorrect values)
-
+      
+      // --- WRONG SABER PENALTY ---
+      // If T/F (Pink/Cyan), check if saber matches. If not, it's WRONG even if block was Correct.
+      // Logic: 
+      // Correct Saber + Correct Block = Correct
+      // Wrong Saber + Correct Block = WRONG
+      // Correct Saber + Wrong Block = WRONG
+      // Wrong Saber + Wrong Block = WRONG
+      if (saberColor && (block.type === 'true_false_pair' || block.type === 'true_false_split')) {
+           const pinks = ['#ff00ff', 'magenta']
+           const cyans = ['#00ffff', 'cyan']
+           const blockColor = block.color
+           
+           let validColor = true
+           if (pinks.includes(blockColor) && !pinks.includes(saberColor)) validColor = false
+           if (cyans.includes(blockColor) && !cyans.includes(saberColor)) validColor = false
+           
+           if (!validColor) {
+               isCorrect = false // Penalize for wrong saber
+               // Note: We still explode the block, but it counts as a miss/wrong.
+           }
+      }
 
       // Mark as answered if Valid HIT (even if wrong, we consume the question)
       handledQuestionsRef.current.add(questionId)
