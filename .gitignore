@@ -18,3 +18,5 @@ build/
 .vscode/
 .idea/
 /srcc
+/Vision
+/audio

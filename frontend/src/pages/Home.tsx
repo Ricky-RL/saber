@@ -105,7 +105,7 @@ export default function Home() {
             </div>
 
             <div className="flex gap-4">
-              <Link to="/quiz" className="flex-1">
+              {/* <Link to="/quiz" className="flex-1">
                 <motion.button
                   data-testid="button-daily-quiz"
                   className="w-full bg-gradient-to-r from-neon-cyan/20 to-neon-blue/20 border-2 border-neon-cyan rounded-xl p-6 text-left hover:border-neon-cyan hover:box-glow-cyan transition-all"
@@ -122,7 +122,7 @@ export default function Home() {
                     </div>
                   </div>
                 </motion.button>
-              </Link>
+              </Link> */}
 
               <Link to="/game" className="flex-1">
                 <motion.button
@@ -190,7 +190,7 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Link to="/quiz">
+                      {/* <Link to="/quiz">
                         <motion.button
                           data-testid={`button-review-${doc.id}`}
                           className="px-4 py-2 rounded-lg bg-neon-cyan/10 text-neon-cyan text-sm font-ui hover:bg-neon-cyan/20 transition-colors"
@@ -199,8 +199,8 @@ export default function Home() {
                         >
                           Review
                         </motion.button>
-                      </Link>
-                      <Link to="/game">
+                      </Link> */}
+                      <Link to="/game" state={{ mode: 'auto' }}>
                         <motion.button
                           data-testid={`button-play-${doc.id}`}
                           className="p-2 rounded-lg bg-neon-magenta/10 text-neon-magenta hover:bg-neon-magenta/20 transition-colors"

@@ -9,12 +9,12 @@ import {
   Play, 
   ChevronLeft,
   Search,
-  Trophy,
-  Target,
+  // Trophy,
+  // Target,
   Check,
   X,
   Upload,
-  Clock
+  // Clock
 } from 'lucide-react';
 
 const documents = [
@@ -26,13 +26,13 @@ const documents = [
   { id: 6, name: 'Literature - Shakespeare', questions: 20, created: 'Dec 10, 2025', lastStudied: '1 week ago', accuracy: 82 },
 ];
 
-const quizHistory = [
+/* const quizHistory = [
   { id: 1, type: 'game', doc: 'Biology Chapter 5', score: 2450, accuracy: 88, date: '2 hours ago', streak: 12 },
   { id: 2, type: 'quiz', doc: 'Physics Formulas', score: 16, accuracy: 89, date: '1 day ago', total: 18 },
   { id: 3, type: 'game', doc: 'World History - WWI', score: 1890, accuracy: 75, date: '2 days ago', streak: 8 },
   { id: 4, type: 'quiz', doc: 'Chemistry Review', score: 14, accuracy: 93, date: '3 days ago', total: 15 },
   { id: 5, type: 'game', doc: 'Calculus - Derivatives', score: 3200, accuracy: 96, date: '4 days ago', streak: 18 },
-];
+]; */
 
 export default function Profile() {
   const [activeTab, setActiveTab] = useState<'documents' | 'history'>('documents');
@@ -102,7 +102,7 @@ export default function Profile() {
             MY DOCUMENTS
           </motion.button>
           
-          <motion.button
+          {/* <motion.button
             data-testid="tab-history"
             onClick={() => setActiveTab('history')}
             className={`font-display text-lg font-bold px-6 py-3 rounded-lg transition-all ${
@@ -114,7 +114,7 @@ export default function Profile() {
             whileTap={{ scale: 0.98 }}
           >
             QUIZ HISTORY
-          </motion.button>
+          </motion.button> */}
         </div>
 
         <AnimatePresence mode="wait">
@@ -231,7 +231,7 @@ export default function Profile() {
                             <Trash2 className="w-4 h-4" />
                           </motion.button>
                           
-                          <Link to="/game">
+                          <Link to="/game" state={{ mode: 'auto' }}>
                             <motion.button
                               data-testid={`button-play-${doc.id}`}
                               className="p-2 rounded-lg bg-neon-magenta/10 text-neon-magenta hover:bg-neon-magenta/20 transition-colors"
@@ -250,7 +250,7 @@ export default function Profile() {
             </motion.div>
           )}
 
-          {activeTab === 'history' && (
+          {/* {activeTab === 'history' && (
             <motion.div
               key="history"
               initial={{ opacity: 0, y: 20 }}
@@ -338,7 +338,7 @@ export default function Profile() {
                 ))}
               </div>
             </motion.div>
-          )}
+          )} */}
         </AnimatePresence>
       </main>
     </div>
