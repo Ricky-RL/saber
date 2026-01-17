@@ -162,8 +162,11 @@ export default function Profile() {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="text-right mr-2 hidden sm:block">
-             <div className="text-sm font-medium text-foreground">{user?.email}</div>
+          <div className="text-right mr-4 hidden sm:block">
+             <p className="text-xs text-muted-foreground font-ui mb-0.5 uppercase tracking-wider">Player</p>
+             <div className="text-lg font-bold bg-gradient-to-r from-neon-cyan to-neon-magenta bg-clip-text text-transparent font-display tracking-wide">
+               {user?.user_metadata?.full_name || user?.email}
+             </div>
           </div>
           <button
             onClick={handleSignOut}
