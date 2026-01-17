@@ -1,15 +1,17 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
+import { useAuth } from '../contexts/Auth';
+import LoginModal from '../components/LoginModal';
 import { 
   Zap, 
   FileText, 
   Target,
   ChevronRight,
-  Folder,
   Gamepad2,
   Play,
-  Clock
+  Clock,
+  User
 } from 'lucide-react';
 
 const recentDocs = [
@@ -48,7 +50,17 @@ const getIntensityColor = (intensity: number) => {
 };
 
 export default function Home() {
-  const [dailyQuizMode, setDailyQuizMode] = useState<'quiz' | 'game' | null>(null);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  const handleProfileClick = () => {
+    if (user) {
+      navigate('/profile');
+    } else {
+      setIsLoginModalOpen(true);
+    }
+  };
   const [hoveredDay, setHoveredDay] = useState<{ index: number; monthIndex: number; gamesPlayed: number; x: number; y: number } | null>(null);
 
   const handleMouseEnter = (monthIndex: number, dayIndex: number, gamesPlayed: number, e: React.MouseEvent) => {
@@ -68,6 +80,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen relative overflow-hidden text-foreground">
+      <LoginModal 
+        isOpen={isLoginModalOpen} 
+        onClose={() => setIsLoginModalOpen(false)} 
+      />
       <div className="absolute inset-0 grid-lines opacity-50" />
       
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-neon-cyan/10 rounded-full blur-[100px]" />
@@ -117,17 +133,16 @@ export default function Home() {
         </Link>
 
         <div className="flex items-center gap-4">
-          <Link to="/profile">
-            <motion.button
-              data-testid="button-documents"
-              className="neon-button px-5 py-2.5 rounded-lg font-ui font-medium flex items-center gap-2"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.98 }}
-            >
-              <Folder className="w-4 h-4" />
-              Documents & History
-            </motion.button>
-          </Link>
+          <motion.button
+            onClick={handleProfileClick}
+            data-testid="button-profile"
+            className="neon-button px-5 py-2.5 rounded-lg font-ui font-medium flex items-center gap-2"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <User className="w-4 h-4" />
+            {user ? 'Profile' : 'Sign In'}
+          </motion.button>
         </div>
       </nav>
 
