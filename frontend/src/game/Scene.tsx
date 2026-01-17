@@ -236,7 +236,8 @@ function GameLoop() {
       // Distance = Speed * Time. 
       // Speed 50 * 2.0s = 100 meters spawn distance.
       // Speed 12 * 2.0s = 24 meters spawn distance.
-      const SPEED = 12
+      // USER REQUEST: Increase distance significantly.
+      const SPEED = 20
       
       // 1. SPAWN Flying Header
       setHeaders(prev => [...prev, {
@@ -565,7 +566,7 @@ export default function Scene() {
     <Canvas gl={{ alpha: false }}> {/* Alpha false for performance since we have opaque background now */}
       <PerspectiveCamera makeDefault position={[0, 1.5, 6]} fov={60} />
       <color attach="background" args={['#000000']} />  {/* Restored Black Background */}
-      <fog attach="fog" args={['#000000', 30, 200]} /> {/* Increased fog distance */}
+      <fog attach="fog" args={['#000000', 30, 150]} /> {/* Increased fog distance for new spawn range */}
       
       <ambientLight intensity={0.5} />
       <pointLight position={[10, 10, 10]} intensity={1} />
