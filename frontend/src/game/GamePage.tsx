@@ -21,7 +21,9 @@ function GamePage() {
   const generatedAudioRef = useRef<ArrayBuffer | null>(null) // Ref to track generated audio for waiting loops
   const audioGeneratingRef = useRef(false) // Ref to track audio generating state for waiting loops
   const audioGenerationFailedRef = useRef(false) // Ref to track failure state for waiting loops
-  
+  const statsUploadedRef = useRef(false) // Prevent duplicate stat uploads
+  const [uploadedDocumentId, setUploadedDocumentId] = useState<string | null>(null) // Track uploaded doc ID if created in-game
+
   const location = useLocation()
   const locationState = location.state as { 
     audioData?: ArrayBuffer; 
@@ -34,6 +36,9 @@ function GamePage() {
   // Upload Stats on Game Over
   useEffect(() => {
     if (isGameOver && user && levelData) {
+        if (statsUploadedRef.current) return;
+        statsUploadedRef.current = true;
+
         // Calculate Accuracy
         // Total questions is the number of events in timeline (assuming 1 event = 1 question)
         const totalQuestions = levelData.timeline.length
@@ -44,8 +49,8 @@ function GamePage() {
             ? Number((correctCount / totalQuestions).toFixed(2))
             : 0
 
-        // Determine Document ID
-        const documentId = locationState?.documentId
+        // Determine Document ID: Use location state OR the one we just uploaded
+        const documentId = locationState?.documentId || uploadedDocumentId
 
         // Constrain payload
         const payload: any = {
@@ -75,13 +80,23 @@ function GamePage() {
                 body: JSON.stringify(payload)
             })
             .then(res => {
-                if (res.ok) console.log("Stats uploaded successfully")
+                if (res.ok) {
+                  console.log("Stats uploaded successfully")
+                  statsUploadedRef.current = true // Mark as uploaded
+                }
                 else console.error("Failed to upload stats", res.statusText)
             })
             .catch(err => console.error("Error uploading stats:", err))
         })
     }
   }, [isGameOver, user, levelData]) // Runs when isGameOver becomes true
+
+  // Reset statsUploadedRef when starting a new game
+  useEffect(() => {
+    if (!isGameOver) {
+      statsUploadedRef.current = false;
+    }
+  }, [isGameOver]);
 
   // Fetch Equipped Items on Load
   useEffect(() => {
@@ -283,30 +298,73 @@ function GamePage() {
             audioBuffer = await audioResponse.arrayBuffer()
         }
 
-        // 2. Upload PDF & Generate Quiz
-        /*
-        const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('user_id', user?.id || 'guest')
+        // 2. Upload PDF to Storage & DB, then Generate Quiz
+        let docId = '';
 
-        const quizResponse = await fetch(`${API_URL}/generate-quiz`, {
-            method: 'POST',
-            body: formData,
-            // headers: { 'Authorization': ... } // If needed later
-        })
+        // Only perform upload if user is logged in
+        if (user) {
+             const fileName = `${user.id}/${Date.now()}_${file.name}`
+             const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('documents')
+                .upload(fileName, file)
 
-        if (!quizResponse.ok) {
-            const err = await quizResponse.json()
-            throw new Error(err.detail || "Quiz generation failed")
+             if (uploadError) throw uploadError
+
+             console.log("File uploaded to Supabase Storage:", uploadData)
+
+             // Save Document Metadata to DB
+             const { data: docData, error: docError } = await supabase
+                .from('documents')
+                .insert({
+                    user_id: user.id,
+                    name: file.name,
+                    file_path: uploadData.path,
+                    file_size: file.size,
+                    file_type: file.type,
+                    topic: 'Unknown' 
+                })
+                .select()
+                .single()
+             
+             if (docError) throw docError
+             console.log("Document saved to DB:", docData)
+             
+             docId = docData.id
+             setUploadedDocumentId(docId)
+
+             // Generate Quiz via Backend with correct Doc ID
+             /*
+             const quizResponse = await fetch(`${API_URL}/generate-quiz/${docId}`, {
+                 method: 'POST',
+                 headers: {
+                    'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+                 }
+             })
+
+             if (!quizResponse.ok) {
+                 const err = await quizResponse.json()
+                 throw new Error(err.detail || "Quiz generation failed")
+             }
+
+             const quizData = await quizResponse.json()
+             */
         }
 
-        const quizData = await quizResponse.json()
+        // IMPORTANT: Uncomment above for Real Backend functionality
+        /*
+        const formData = new FormData()
+        // ...existing code...
+        if (quizData.document_id) {
+             setUploadedDocumentId(quizData.document_id)
+        }
         */
        
-        // HARDCODED DATA
+        // HARDCODED DATA (REMOVE THIS WHEN BACKEND IS READY)
+        // If we created a real doc, use its ID. Otherwise use placeholder.
+        const effectiveDocId = docId || "DOC_a5831ebb" 
+        
         const quizData = {
-            "document_id": "DOC_a5831ebb",
+            "document_id": effectiveDocId,
             "genre": "Regression Testing",
             "questions": [
                 {
@@ -456,6 +514,11 @@ function GamePage() {
                 }
             ],
             "user_id": "d818162b-ab40-4626-a2a6-0d92cefd3746"
+        }
+        
+        // Save the document ID from the response (whether real or hardcoded) so we can upload stats later
+        if (quizData.document_id) {
+             setUploadedDocumentId(quizData.document_id)
         }
 
         console.log("Quiz Generated (HARDCODED):", quizData)

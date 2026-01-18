@@ -98,30 +98,57 @@ def get_document(document_id: str):
             elif isinstance(res, str):
                 document['file_url'] = res
             else:
-                 document['file_url'] = res # Fallback
-                
-        except Exception as storage_error:
-            print(f"Error generating signed URL: {storage_error}")
-            document['file_url'] = None # Don't fail completely if storage is down
-
+                # Try accessing attribute style if not dict
+                if hasattr(res, 'signedURL'):
+                     document['file_url'] = res.signedURL
+                else: 
+                     # Handle updated library return structure
+                     # New supabase-py might return a string directly or different dict
+                     document['file_url'] = res # Fallback
+            
+        except Exception as e:
+            print(f"Error creating signed URL: {e}")
+            document['file_url'] = None
+            
         return document
     except Exception as e:
-        print(f"Error fetching document {document_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.post("/document/{document_id}/updateTopic")
+@router.put("/document/{document_id}/topic")
 def update_document_topic(document_id: str, request: UpdateTopicRequest):
     """
-    Update the topic of a specific document.
+    Update the topic of a document.
     """
     try:
-        response = supabase.table("documents").update({"topic": request.topic}).eq("id", document_id).execute()
+        response = supabase.table("documents") \
+            .update({"topic": request.topic}) \
+            .eq("id", document_id) \
+            .execute()
         
-        if not response.data:
-            raise HTTPException(status_code=404, detail="Document not found or update failed")
-            
-        return {"message": "Topic updated successfully", "data": response.data}
+        return response.data
     except Exception as e:
-        print(f"Error updating topic for document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class SaveDocumentRequest(BaseModel):
+    user_id: str
+    filename: str
+    file_path: str
+    size: int
+    topic: str | None = None
+
+@router.post("/document")
+async def save_document(request: SaveDocumentRequest):
+    """
+    Save a document to the database.
+    """
+    try:
+        response = supabase.table("documents").insert({
+            "user_id": request.user_id,
+            "filename": request.filename,
+            "file_path": request.file_path,
+            "size": request.size,
+            "topic": request.topic
+        }).execute()
+        return response.data[0]
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

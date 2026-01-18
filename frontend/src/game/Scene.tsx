@@ -76,6 +76,7 @@ function GameLoop() {
   useEffect(() => {
      if (isPlaying) {
          handledQuestionsRef.current.clear()
+         endGameStartTime.current = null // Reset endgame timer when game starts
          nextSpawnTimeRef.current = 0
          questionQueueRef.current = [] // Will be repopulated by director
      }
@@ -83,6 +84,9 @@ function GameLoop() {
 
   // --- AUDIO LOGIC ---
   useEffect(() => {
+    // Clean up function ref to handle unmount or re-run
+    let currentSource: AudioBufferSourceNode | null = null;
+    
     if (isPlaying && !isPaused && levelData && audioBuffer) {
         // Start or Resume Audio
         let ctx = audioContext
@@ -112,6 +116,7 @@ function GameLoop() {
         
         // Store context info
         const startTime = ctx.currentTime - offset
+        currentSource = source // Store for cleanup
         setAudioContext(ctx, source, startTime)
 
         source.onended = () => {
@@ -122,18 +127,19 @@ function GameLoop() {
         }
         
         return () => {
-            try { source.stop() } catch(e) {}
+            try { currentSource?.stop() } catch(e) {}
         }
     } else if (isPaused && audioSource) {
         try { audioSource.stop() } catch(e) {}
         setAudioContext(audioContext, null, audioStartTime) // Clear source
     } else if (!isPlaying) {
         if (audioSource) try { audioSource.stop() } catch(e) {}
-        if (audioContext) try { audioContext.close() } catch(e) {}
+        if (audioContext && audioContext.state !== 'closed') try { audioContext.close() } catch(e) {}
         setAudioContext(null, null, 0)
         setBlocks([])
         setCurrentAudioTime(0)
         handledQuestionsRef.current.clear()
+        endGameStartTime.current = null // Reset endgame timer
         setCurrentQuestionText(null)
     }
   }, [isPlaying, isPaused, levelData, audioBuffer])
