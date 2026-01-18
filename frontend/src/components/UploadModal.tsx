@@ -17,6 +17,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }: Uploa
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [docName, setDocName] = useState('');
+  const [docTopic, setDocTopic] = useState('');
 
   if (!isOpen) return null;
 
@@ -55,6 +56,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }: Uploa
         .insert({
           user_id: user.id,
           name: docName.trim(),
+          topic: docTopic.trim() || null, // Add topic
           file_path: filePath,
           file_type: selectedFile.type,
           file_size: selectedFile.size,
@@ -68,6 +70,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }: Uploa
       onClose();
       setSelectedFile(null);
       setDocName('');
+      setDocTopic('');
     } catch (err: any) {
       console.error('Upload error:', err);
       setError(err.message || 'Failed to upload document');
@@ -98,13 +101,39 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }: Uploa
           <h2 className="font-display text-2xl font-bold text-foreground">
             Upload Document
           </h2>
-          <p className="mt-2 text-muted-foreground font-ui">
-            Upload your notes to generate quizzes
+          <p className="text-muted-foreground mt-2">
+            Select a PDF file to generate a quiz from
           </p>
         </div>
 
         <div className="space-y-4">
-          <div 
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Document Name
+            </label>
+            <input
+              type="text"
+              value={docName}
+              onChange={(e) => setDocName(e.target.value)}
+              placeholder="e.g., Biology Notes Chapter 1"
+              className="w-full px-4 py-2 bg-black/40 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-neon-cyan/50 text-white placeholder-gray-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Topic (Optional)
+            </label>
+            <input
+              type="text"
+              value={docTopic}
+              onChange={(e) => setDocTopic(e.target.value)}
+              placeholder="e.g., Science, History, Math"
+              className="w-full px-4 py-2 bg-black/40 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-neon-cyan/50 text-white placeholder-gray-500"
+            />
+          </div>
+
+          <div
             onClick={() => fileInputRef.current?.click()}
             className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
               selectedFile ? 'border-neon-cyan bg-neon-cyan/5' : 'border-border hover:border-muted-foreground'
@@ -133,19 +162,6 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }: Uploa
               </div>
             )}
           </div>
-
-          {selectedFile && (
-            <div className="space-y-1">
-              <label className="text-sm font-medium text-muted-foreground">Document Name</label>
-              <input
-                type="text"
-                value={docName}
-                onChange={(e) => setDocName(e.target.value)}
-                placeholder="Enter document name"
-                className="w-full px-4 py-2 rounded-xl bg-card border border-border focus:border-neon-cyan focus:ring-1 focus:ring-neon-cyan outline-none font-ui transition-all"
-              />
-            </div>
-          )}
 
           {error && (
             <div className="flex items-center gap-2 text-destructive text-sm bg-destructive/10 p-3 rounded-lg">

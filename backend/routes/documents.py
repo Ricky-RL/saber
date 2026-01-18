@@ -1,8 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from supabase_client import supabase
 from .jwt import verify_token
+from pydantic import BaseModel
 
 router = APIRouter(tags=["documents"])
+
+class UpdateTopicRequest(BaseModel):
+    topic: str
 
 @router.get("/recent-documents")
 async def get_recent_documents(user = Depends(verify_token)):
@@ -66,4 +70,38 @@ async def get_recent_documents(user = Depends(verify_token)):
 
         return unique_docs[:6] # Return top 6
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/document/{document_id}")
+def get_document(document_id: str):
+    """
+    Fetch a specific document by its ID.
+    """
+    try:
+        response = supabase.table("documents").select("*").eq("id", document_id).single().execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Document not found")
+            
+        return response.data
+    except Exception as e:
+        print(f"Error fetching document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/document/{document_id}/updateTopic")
+def update_document_topic(document_id: str, request: UpdateTopicRequest):
+    """
+    Update the topic of a specific document.
+    """
+    try:
+        response = supabase.table("documents").update({"topic": request.topic}).eq("id", document_id).execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Document not found or update failed")
+            
+        return {"message": "Topic updated successfully", "data": response.data}
+    except Exception as e:
+        print(f"Error updating topic for document {document_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
