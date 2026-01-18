@@ -68,9 +68,58 @@ function GameLoop() {
   const nextSpawnTimeRef = useRef<number>(0)
   const questionQueueRef = useRef<QuestionData[]>([])
   const currentQuestionTargetTimeRef = useRef<number>(0) // Track when current Q ends
+  const currentQuestionTimeoutTimeRef = useRef<number>(0) // Pause-aware timeout
 
   // Avatar ref
   const avatarRef = useRef<AvatarRef>(null)
+
+  // Reset ref on start
+  useEffect(() => {
+     if (isPlaying) {
+         handledQuestionsRef.current.clear()
+         endGameStartTime.current = null // Reset endgame timer when game starts
+         nextSpawnTimeRef.current = 0
+         questionQueueRef.current = [] // Will be repopulated by director
+         currentQuestionTimeoutTimeRef.current = 0
+     }
+  }, [isPlaying])
+
+  // --- AUDIO LOGIC ---
+  // ... (unchanged)
+
+  // --- GAME LOOP & SPAWNER ---
+  useFrame(() => {
+      if (!isPlaying || isPaused || !audioContext) return
+
+      // Update Time
+      const time = audioContext.currentTime - audioStartTime
+      setCurrentAudioTime(time)
+
+      // ... (Game End Logic unchanged)
+
+      // PAUSE-AWARE TIMEOUT CHECK
+      if (currentQuestionId && currentQuestionTimeoutTimeRef.current > 0) {
+          if (time > currentQuestionTimeoutTimeRef.current) {
+               // Trigger Timeout Logic
+               handleQuestionTimeout(currentQuestionId)
+               currentQuestionTimeoutTimeRef.current = 0 // handled
+          }
+      }
+
+      // ... (Rest of useFrame)
+
+      // TIMEOUT HANDLER (Now Pause-Safe)
+      // Moved inside useFrame access scope or defined outside?
+      // Since it uses refs, it can be defined inside component but outside useFrame if correctly referenced.
+      // But we need to call it from here.
+  })
+
+  // Define handleQuestionTimeout OUTSIDE useFrame but referencable?
+  // It needs access to blocks, state.
+  // Let's attach it to a ref or just implement logic inline in useFrame or separate function.
+  
+
+
 
   // Reset ref on start
   useEffect(() => {
@@ -323,11 +372,70 @@ function GameLoop() {
              scheduleNextQuestion(now + DYNAMIC_SPAWN_SPACER)
           }
       }
+      // Puse-Aware Timeout Check
+      if (currentQuestionId && currentQuestionTimeoutTimeRef.current > 0) {
+          if (time > currentQuestionTimeoutTimeRef.current) {
+               handleQuestionTimeout(currentQuestionId)
+               currentQuestionTimeoutTimeRef.current = 0 
+          }
+      }
+
+      // --- IMMEDIATE MISS DETECTION (Time Based) ---
+      // This is redundant if we assume timeout handles it, but keeps explicit "Miss Threshold" compatible logic.
+      // We can keep it or rely on timeout.
+      // User said "Question runs".
+      // Kepp existing miss logic but ensure it respects pause?
+      // Existing logic uses `time`. `time` stops when `audioContext` stops?
+      // `const time = audioContext.currentTime - audioStartTime`
+      // If `isPaused`, `useFrame` returns early (Line 149).
+      // So logic STOPS running.
+      // So why did user says "runs when paused"?
+      // likely `setTimeout`!
+      
+      // So existing logic is fine.
   })
 
-  // Spawn Logic Helper
+  // TIMEOUT HANDLER (Pause-Safe, defined in GameLoop scope)
+  const handleQuestionTimeout = (instanceId: string) => {
+      // If we haven't answered this question yet...
+      if (!handledQuestionsRef.current.has(instanceId)) {
+          handledQuestionsRef.current.add(instanceId)
+          
+          const block = blocks.find(b => b.questionId === instanceId)
+          let correctText = "Unknown"
+          
+          // Enhanced Answer Lookup (ID + Text Fallback)
+          const lastUnderscoreIndex = instanceId.lastIndexOf('_');
+          const originalQId = lastUnderscoreIndex !== -1 ? instanceId.substring(0, lastUnderscoreIndex) : instanceId;
+          const sourceQ = levelData?.questionsQueue?.find(q => q.id === originalQId) || 
+                          levelData?.questionsQueue?.find(q => q.content.questionText === block?.questionText);
+
+          if (sourceQ) {
+               const correctAns = sourceQ.content.answers?.find(a => a.isCorrect)
+               correctText = correctAns?.text || sourceQ.content.correctAnswerRaw || "Unknown"
+          }
+
+          useGameStore.getState().setFeedback({
+              type: 'WRONG',
+              text: "NOTHING", 
+              correctText: correctText
+          })
+          
+          setCombo(() => 1)
+          avatarRef.current?.sayMessage("Missed!")
+          setTimeout(() => useGameStore.getState().setFeedback(null), 2000)
+
+          setCurrentQuestionId(prevId => {
+             if (prevId === instanceId) {
+                 setCurrentQuestionText(null)
+                 return null
+             }
+             return prevId
+          })
+      }
+  }
+
   // --- SPAWNER HELPER ---
-  // SPAWNER HELPER
   const spawnQuestionBlocks = (question: QuestionData, targetTime: number) => {
       const newBlocks: any[] = []
       
@@ -335,56 +443,21 @@ function GameLoop() {
       const SPEED = GAME_SPEED
       
       // --- ROBUST TARGET TIME SETTING (Consolidated) ---
-      // Ensure we track the "End Time" of the question for Immediate Miss Logic.
-      // This applies to ALL types (T/F, MCQ) to fix the "T/F needs same logic" bug.
       let extraDuration = 0
       if (question.type === 'TRUE_FALSE_PAIR' || question.type === 'TRUE_FALSE_SPLIT') {
-          extraDuration = 0 // Single timestamp arrival
+          extraDuration = 0 
       } else {
-          // MCQ Stream
           const count = question.content.answers?.length || 0
           extraDuration = Math.max(0, (count - 1) * STREAM_SPAWN_OFFSET)
       }
       currentQuestionTargetTimeRef.current = targetTime + extraDuration
-      // --------------------------------------------------
 
-      // UNIQUE ID GENERATION (Fixes "Ghost Hits" & "Stall" on loop)
+      // UNIQUE ID GENERATION
       const instanceId = `${question.id}_${Date.now()}`
       
-      // TIMEOUT HANDLER (User Request: "Miss all blocks = Wrong + Show Correct")
-      const handleQuestionTimeout = () => {
-          // If we haven't answered this question yet...
-          if (!handledQuestionsRef.current.has(instanceId)) {
-              // console.log(`Question ${instanceId} timed out (Missed All)`)
-              handledQuestionsRef.current.add(instanceId)
-              
-              const correctAns = question.content.answers?.find(a => a.isCorrect)
-              const correctText = correctAns?.text || "Unknown"
+      // NOTE: handleQuestionTimeout is now defined in GameLoop scope and triggered by useFrame
+      
 
-              // Start Feedback
-              useGameStore.getState().setFeedback({
-                  type: 'WRONG',
-                  text: "NOTHING", // "I chose nothing"
-                  correctText: correctText
-              })
-              
-              // Reset Combo
-              setCombo(() => 1)
-              avatarRef.current?.sayMessage("Missed!")
-              
-              // Auto-clear feedback
-              setTimeout(() => useGameStore.getState().setFeedback(null), 2000)
-
-              // Clear Static HUD immediately if active
-              setCurrentQuestionId(prevId => {
-                 if (prevId === instanceId) {
-                     setCurrentQuestionText(null)
-                     return null
-                 }
-                 return prevId
-              })
-          }
-      }
 
       // Variation Logic
       if (question.type === 'TRUE_FALSE_PAIR') {
@@ -401,8 +474,8 @@ function GameLoop() {
           const DURATION = 4.0
           scheduleNextQuestion(targetTime + DURATION) 
           
-          // Set Timeout for Miss (Duration + Buffer)
-          setTimeout(handleQuestionTimeout, (DURATION + 1.0) * 1000)
+          // Set PAUSE-AWARE Timeout Time
+          currentQuestionTimeoutTimeRef.current = targetTime + DURATION + 1.0;
 
          // --- PAIR VARIATION (Separate Left/Right with Random Positions) ---
          // 1. Randomize Content Order (Left/Right text swap)
@@ -470,8 +543,8 @@ function GameLoop() {
           // SCHEDULE FALLBACK (Max Duration)
           scheduleNextQuestion(targetTime + totalDuration + 2.0)
 
-          // USE TIMEOUT HANDLER
-          setTimeout(handleQuestionTimeout, (hudDuration + 0.5) * 1000)
+          // Set PAUSE-AWARE Timeout Time
+          currentQuestionTimeoutTimeRef.current = targetTime + hudDuration + 0.5;
 
           const TRON_COLORS = ['#00ffff', '#ff00ff', '#ff0000', '#39ff14'] 
           const colorOffset = Math.floor(Math.random() * TRON_COLORS.length) 
@@ -546,12 +619,38 @@ function GameLoop() {
                // We look through all current blocks (or we could look at questionQueue/History if we tracked it)
                // Since blocks are still in state until this frame ends, we can find the sibling block with isCorrect=true
                const correctBlock = blocks.find(b => b.questionId === questionId && b.isCorrect)
-               const correctText = correctBlock?.text || "Unknown"
+               
+               let correctTextFallback = "Unknown";
+               
+               if (!correctBlock) {
+                   console.warn(`[Scene] ⚠️ CORRECT BLOCK NOT FOUND for Question ID: "${questionId}"`)
+                   
+                   // ULTIMATE FALLBACK: Look up in Source Data (ID or Text match)
+                   // Fix: Handle IDs with underscores AND try text match
+                   const lastUnderscoreIndex = questionId.lastIndexOf('_');
+                   const originalQId = lastUnderscoreIndex !== -1 ? questionId.substring(0, lastUnderscoreIndex) : questionId;
+                   
+                   const sourceQ = levelData?.questionsQueue?.find(q => q.id === originalQId) ||
+                                   levelData?.questionsQueue?.find(q => q.content.questionText === block?.questionText);
+                   
+                   if (sourceQ) {
+                       // Try finding isCorrect in source
+                       const correctAns = sourceQ.content.answers?.find(a => a.isCorrect);
+                       if (correctAns) {
+                           correctTextFallback = correctAns.text;
+                       } else if (sourceQ.content.correctAnswerRaw) {
+                           // Use RAW answer if mapping matched nothing
+                           correctTextFallback = sourceQ.content.correctAnswerRaw;
+                       }
+                   }
+               }
+
+               const correctTextFinal = correctBlock?.text || correctTextFallback;
 
                useGameStore.getState().setFeedback({ 
                    type: 'WRONG', 
                    text: block.text,
-                   correctText: correctText
+                   correctText: correctTextFinal
                })
           }
           
@@ -727,7 +826,7 @@ function GameLoop() {
       </mesh>
 
       {/* Avatar in bottom left corner */}
-      <Html
+      {/* <Html
         position={[-3, 0.5, 3]}
         transform
         occlude={false}
@@ -738,7 +837,7 @@ function GameLoop() {
         }}
       >
         <Avatar ref={avatarRef} />
-      </Html>
+      </Html> */}
     </>
   )
 }

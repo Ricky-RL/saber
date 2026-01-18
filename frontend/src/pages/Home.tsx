@@ -349,7 +349,7 @@ export default function Home() {
                 </motion.button>
               </Link> */}
 
-              <Link to="/difficulty" className="flex-1">
+              <Link to="/game" className="flex-1">
                 <motion.button
                   data-testid="button-daily-game"
                   className="w-full bg-gradient-to-r from-neon-magenta/20 to-neon-pink/20 border-2 border-neon-magenta rounded-xl p-6 text-left hover:border-neon-magenta hover:box-glow-magenta transition-all"
@@ -361,8 +361,8 @@ export default function Home() {
                       <Gamepad2 className="w-7 h-7 text-neon-magenta" />
                     </div>
                     <div>
-                      <h3 className="font-display text-xl font-bold text-neon-magenta mb-1">STUDYSABER</h3>
-                      <p className="text-muted-foreground text-sm">Slash through questions</p>
+                      <h3 className="font-display text-xl font-bold text-neon-magenta mb-1">PLAY NOW</h3>
+                      <p className="text-muted-foreground text-sm">Upload & Slash</p>
                     </div>
                   </div>
                 </motion.button>

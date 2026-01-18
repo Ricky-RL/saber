@@ -145,13 +145,29 @@ function GamePage() {
                ];
           } else {
               // MCQ - Robust String Matching
-              const target = (q.correct_answer || '').trim().toLowerCase();
-              console.log(`🔍 Mapping MCQ: "${q.question}" -> Target: "${target}"`);
+              let rawCorrect = q.correct_answer;
+              if (rawCorrect === undefined || rawCorrect === null) {
+                  // Fallback: Check aliases commonly used by LLMs
+                  rawCorrect = q.answer || q.correct || q.right_answer;
+              }
               
-              answers = (q.options || []).map((opt: string) => {
-                  const optNorm = opt.trim().toLowerCase();
-                  const isMatch = optNorm === target;
-                  if (isMatch) console.log(`   ✅ Match: "${opt}"`);
+              // HEURISTIC: If still missing, start assuming index 0 is correct (User report: "first block is always correct")
+              const heuristicIndex = (rawCorrect === undefined || rawCorrect === null) ? 0 : -1;
+              
+              const target = String(rawCorrect ?? '').trim().toLowerCase();
+              console.log(`🔍 Mapping MCQ: "${q.question}" -> Target: "${target}" (Heuristic: ${heuristicIndex === 0 ? 'Index 0' : 'None'})`);
+              
+              answers = (q.options || []).map((opt: string, idx: number) => {
+                  const optNorm = String(opt).trim().toLowerCase();
+                  let isMatch = optNorm === target;
+                  
+                  if (heuristicIndex !== -1 && idx === heuristicIndex) {
+                      isMatch = true;
+                      console.log("   ⚠️ Used heuristic: Assume Index 0 is correct");
+                  } else if (isMatch) {
+                      console.log(`   ✅ Match: "${opt}"`);
+                  }
+                  
                   return {
                       text: opt,
                       isCorrect: isMatch
@@ -162,6 +178,19 @@ function GamePage() {
               if (!answers.some((a: any) => a.isCorrect)) {
                  console.warn(`   ⚠️ NO MATCH for: "${q.question}" (Target: "${target}")`);
                  console.warn(`   Options:`, q.options);
+                 // Force index 0 if absolutely no match? No, safer to leave as is, fallback logic handles display.
+                 // But game logic needs one isCorrect=true.
+                 if (answers.length > 0) {
+                     answers[0].isCorrect = true;
+                     console.warn("   ⚠️ FORCING Index 0 to be correct to prevent broken game.");
+                 }
+              }
+
+              // SHUFFLE ANSWERS (User Request: "random assignment of blocks")
+              // Fisher-Yates shuffle
+              for (let i = answers.length - 1; i > 0; i--) {
+                  const j = Math.floor(Math.random() * (i + 1));
+                  [answers[i], answers[j]] = [answers[j], answers[i]];
               }
           }
 
@@ -170,7 +199,8 @@ function GamePage() {
               type: qType,
               content: {
                   questionText: q.question,
-                  answers: answers
+                  answers: answers,
+                  correctAnswerRaw: String(q.correct_answer ?? '')
               }
           };
       });

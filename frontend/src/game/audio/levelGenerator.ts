@@ -10,6 +10,7 @@ export interface QuestionData {
         text: string;
         isCorrect: boolean;
     }[];
+    correctAnswerRaw?: string; // Fallback for display
   };
   // Legacy blocks structure
   blocks?: any[]; 
