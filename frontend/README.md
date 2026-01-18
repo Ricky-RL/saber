@@ -1,7 +1,9 @@
 # React + TypeScript + Vite
 
 `npm install`  
-`npm run dev`  
+`npm run dev`
+`npm run build:extension` for the extension and a `dist-extension` folder will be created
+Go to chrome://extensions/ and load unpacked and select `dist-extension`
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
