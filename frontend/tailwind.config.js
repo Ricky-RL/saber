@@ -33,6 +33,7 @@ export default {
         "neon-red": "hsl(var(--neon-red))",
         "neon-blue": "hsl(var(--neon-blue))",
         "neon-purple": "hsl(var(--neon-purple))",
+        "neon-yellow": "hsl(var(--neon-yellow))",
       },
       fontFamily: {
         display: ['Orbitron', 'sans-serif'],

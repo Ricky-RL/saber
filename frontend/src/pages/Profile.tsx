@@ -456,10 +456,7 @@ export default function Profile() {
                       </div>
 
                       <div className="flex items-center gap-6">
-                        <div className="text-right hidden sm:block">
-                          <p className="text-sm text-muted-foreground">Accuracy</p>
-                          <p className="font-display text-neon-cyan">{doc.accuracy}%</p>
-                        </div>
+
                         
                         <div className="flex items-center gap-2">
                           <motion.button

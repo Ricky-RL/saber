@@ -758,23 +758,12 @@ function GamePage() {
                   ? (audioGenerating 
                       ? 'Generating song & analyzing document...' 
                       : 'Analyzing Document & Generating Quiz...')
-                  : 'Upload your study notes (PDF) to convert them into a rhythm game level! The game will last 60 seconds.'}
+                  : 'Upload your study notes to convert them into a level!.'}
               </p>
 
               {!loading && (
-                  <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block' }}>
-                    <button style={{ 
-                        padding: '15px 30px', 
-                        fontSize: '1.2rem', 
-                        background: '#00ffff', 
-                        border: 'none', 
-                        color: 'black',
-                        borderRadius: '30px',
-                        cursor: 'pointer',
-                        fontWeight: 'bold',
-                        fontFamily: 'Orbitron',
-                        boxShadow: '0 0 15px #00ffff'
-                    }}>
+                  <div className="group" style={{ position: 'relative', overflow: 'hidden', display: 'inline-block' }}>
+                    <button className="px-10 py-5 text-xl bg-neon-cyan border-none text-black rounded-full cursor-pointer font-bold font-display shadow-none transition-all duration-300 transform group-hover:brightness-75">
                         UPLOAD PDF
                     </button>
                     <input 
