@@ -130,8 +130,8 @@ export function Block({
     // --- SPIN LOGIC (Requested for Variations) ---
     // Spin if it's a Pair Block or Split Block (inner mesh)
     if (innerMeshRef.current && (type === 'true_false_pair' || type === 'true_false_split')) {
-        innerMeshRef.current.rotation.z += delta * 2
-        innerMeshRef.current.rotation.x += delta * 1
+        innerMeshRef.current.rotation.z += delta * 0.5 // Slowed down from 2
+        innerMeshRef.current.rotation.x += delta * 0.25 // Slowed down from 1
     }
 
     // --- PULSE LOGIC (Requested for Split Variation Text) ---
@@ -160,13 +160,13 @@ export function Block({
               
               <Text
                 position={[0, 0, 0.11]} 
-                fontSize={0.8} // Increased from 0.6
-                color="white"
+                fontSize={1.2} // Increased from 0.8
+                color={new THREE.Color(2, 2, 2)}
                 anchorX="center"
                 anchorY="middle"
                 maxWidth={7.5}
                 textAlign="center"
-                outlineWidth={0.05} // Added clear outline
+                outlineWidth={0.08}
                 outlineColor="black"
                 // font={FONT_URL} // disabling to prevent 404 block
               >
@@ -215,9 +215,12 @@ export function Block({
   // --- 3. PAIR VARIATION ---
   // Cube with Text on ALL SIDES + SPIN
   if (type === 'true_false_pair') {
-      const textSize = 0.9 // Increased from 0.6
+      const textSize = 0.9 // Reverted to 0.9
       const outline = 0.08
       
+      // GLOWING TEXT COLOR
+      const whiteGlow = new THREE.Color(2, 2, 2)
+
       return (
         <group>
           <group 
@@ -239,17 +242,17 @@ export function Block({
                 </RoundedBox>
 
                 {/* Front */}
-                <Text position={[0, 0, 0.75]} renderOrder={10} material-toneMapped={false} fontSize={textSize} color="white" anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
+                <Text position={[0, 0, 0.75]} renderOrder={10} material-toneMapped={false} fontSize={textSize} color={whiteGlow} anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
                 {/* Back */}
-                <Text position={[0, 0, -0.75]} renderOrder={10} material-toneMapped={false} rotation={[0, Math.PI, 0]} fontSize={textSize} color="white" anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
+                <Text position={[0, 0, -0.75]} renderOrder={10} material-toneMapped={false} rotation={[0, Math.PI, 0]} fontSize={textSize} color={whiteGlow} anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
                 {/* Top */}
-                <Text position={[0, 0.75, 0]} renderOrder={10} material-toneMapped={false} rotation={[-Math.PI/2, 0, 0]} fontSize={textSize} color="white" anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
+                <Text position={[0, 0.75, 0]} renderOrder={10} material-toneMapped={false} rotation={[-Math.PI/2, 0, 0]} fontSize={textSize} color={whiteGlow} anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
                 {/* Bottom */}
-                <Text position={[0, -0.75, 0]} renderOrder={10} material-toneMapped={false} rotation={[Math.PI/2, 0, 0]} fontSize={textSize} color="white" anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
+                <Text position={[0, -0.75, 0]} renderOrder={10} material-toneMapped={false} rotation={[Math.PI/2, 0, 0]} fontSize={textSize} color={whiteGlow} anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
                 {/* Left */}
-                <Text position={[-0.75, 0, 0]} renderOrder={10} material-toneMapped={false} rotation={[0, -Math.PI/2, 0]} fontSize={textSize} color="white" anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
+                <Text position={[-0.75, 0, 0]} renderOrder={10} material-toneMapped={false} rotation={[0, -Math.PI/2, 0]} fontSize={textSize} color={whiteGlow} anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
             {/* Right */}
-            <Text position={[0.75, 0, 0]} renderOrder={10} material-toneMapped={false} rotation={[0, Math.PI/2, 0]} fontSize={textSize} color="white" anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
+            <Text position={[0.75, 0, 0]} renderOrder={10} material-toneMapped={false} rotation={[0, Math.PI/2, 0]} fontSize={textSize} color={whiteGlow} anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
         </group>
 
         {/* Debug Hitbox for Pair (Rotated with group) */}
@@ -289,11 +292,11 @@ export function Block({
               position={[0, 0, (size[2]/2) + 0.03]} 
               renderOrder={10}
               material-toneMapped={false}
-              fontSize={1.0} // Increased from 0.6
-              color="white"
+              fontSize={1.5} // Increased from 1.0 (Previously 0.6)
+              color={new THREE.Color(2, 2, 2)}
               anchorX="center"
               anchorY="middle"
-              outlineWidth={0.08}
+              outlineWidth={0.1}
               outlineColor="black"
           >
               {text}

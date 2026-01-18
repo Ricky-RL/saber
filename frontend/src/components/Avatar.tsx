@@ -6,7 +6,11 @@ export interface AvatarRef {
   sayMessage: (message: string) => Promise<void>;
 }
 
-const Avatar = forwardRef<AvatarRef>((_, ref) => {
+interface AvatarProps {
+    hideModel?: boolean;
+}
+
+const Avatar = forwardRef<AvatarRef, AvatarProps>(({ hideModel = false }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<{
     scene: THREE.Scene;
@@ -258,6 +262,10 @@ const Avatar = forwardRef<AvatarRef>((_, ref) => {
   useImperativeHandle(ref, () => ({
     sayMessage: speakText,
   }));
+
+  if (hideModel) {
+      return null
+  }
 
   return (
     <canvas

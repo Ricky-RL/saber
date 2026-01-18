@@ -899,7 +899,7 @@ function GameLoop() {
           pointerEvents: 'none'
         }}
       >
-        <Avatar ref={avatarRef} />
+        <Avatar ref={avatarRef} hideModel={true} />
       </Html>
     </>
   )
