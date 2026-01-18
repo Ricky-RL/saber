@@ -132,7 +132,10 @@ export default function Home() {
   useEffect(() => {
     if (user) {
         fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/stats/activity/${user.id}`)
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to fetch stats');
+                return res.json();
+            })
             .then(data => setStats(data))
             .catch(err => console.error("Error loading stats", err));
     }
@@ -518,7 +521,7 @@ export default function Home() {
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Games Played</span>
-                  <span className="font-display text-neon-cyan">{stats ? Object.values(stats.daily_activity).reduce((a, b) => a + b, 0) : 0}</span>
+                  <span className="font-display text-neon-cyan">{stats?.daily_activity ? Object.values(stats.daily_activity).reduce((a, b) => a + b, 0) : 0}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Best Streak</span>
