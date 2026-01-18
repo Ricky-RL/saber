@@ -13,6 +13,7 @@ import { useGameStore } from './GameManager'
 import { Explosion } from './Explosion'
 import { QuestionHeader } from './QuestionHeader'
 import type { QuestionData } from './audio/levelGenerator'
+import Avatar, { type AvatarRef } from '../components/Avatar'
 
 function GameLoop() {
   // ... (Store destructuring)
@@ -45,6 +46,9 @@ function GameLoop() {
   // Ref to track questions answered in THIS session to prevent race conditions
   const handledQuestionsRef = useRef<Set<string>>(new Set())
   const endGameStartTime = useRef<number | null>(null) // Track when to end game
+  
+  // Avatar ref
+  const avatarRef = useRef<AvatarRef>(null)
 
   // Reset ref on start
   useEffect(() => {
@@ -435,8 +439,10 @@ function GameLoop() {
           setScore(s => s + 100)
           setCombo(c => c + 1)
           incrementCorrectCount()
+          avatarRef.current?.sayMessage("Correct!")
       } else {
           setCombo(() => 0)
+          avatarRef.current?.sayMessage("Wrong!")
       }
   }
 
@@ -535,6 +541,20 @@ function GameLoop() {
           <planeGeometry args={[20, 300]} /> {/* Increased length */}
           <meshStandardMaterial color="#050505" roughness={1} metalness={0} /> 
       </mesh>
+
+      {/* Avatar in bottom left corner */}
+      <Html
+        position={[-3, 0.5, 3]}
+        transform
+        occlude={false}
+        style={{
+          width: '200px',
+          height: '200px',
+          pointerEvents: 'none'
+        }}
+      >
+        <Avatar ref={avatarRef} />
+      </Html>
     </>
   )
 }
