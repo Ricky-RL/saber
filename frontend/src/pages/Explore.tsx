@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../supabaseClient';
+import { useAuth } from '../contexts/Auth';
 import { 
   FileText, 
   Play, 
   ChevronLeft,
   Search,
-  Star
+  ThumbsUp
 } from 'lucide-react';
 
 interface Document {
@@ -16,14 +17,18 @@ interface Document {
   questions: number;
   created_at: string;
   topic?: string;
-  rating?: number;
+  difficulty?: string;
+  upvotes?: number;
+  user_liked?: boolean;
   user_id: string;
 }
 
 export default function Explore() {
+  const { user } = useAuth();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [likingDocs, setLikingDocs] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchDocuments();
@@ -49,6 +54,13 @@ export default function Explore() {
 
         if (response.ok) {
           const data = await response.json();
+          // Debug: Log difficulty values
+          console.log('Documents received:', data.map((d: Document) => ({
+            id: d.id,
+            name: d.name,
+            difficulty: d.difficulty,
+            hasDifficulty: !!d.difficulty
+          })));
           setDocuments(data);
         }
       }
@@ -127,18 +139,92 @@ export default function Explore() {
                     </div>
                     
                     <div className="flex-1">
-                        <h3 className="font-ui font-semibold text-foreground group-hover:text-neon-cyan transition-colors flex items-center gap-2">
+                        <h3 className="font-ui font-semibold text-foreground group-hover:text-neon-cyan transition-colors flex items-center gap-2 flex-wrap">
                             {doc.name}
                             {doc.topic && (
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/30 uppercase tracking-wider">
                                 {doc.topic}
                                 </span>
                             )}
+                            {doc.difficulty && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-neon-pink/20 text-neon-pink border border-neon-pink/30 uppercase tracking-wider">
+                                {doc.difficulty.toUpperCase()}
+                                </span>
+                            )}
                         </h3>
                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                            <span className="flex items-center gap-1 text-yellow-400">
-                                {doc.rating ? doc.rating : '-'} <Star className="w-3 h-3 fill-yellow-400" />
-                            </span>
+                            <motion.button
+                              onClick={async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                
+                                if (!user || likingDocs.has(doc.id)) return;
+                                
+                                // Prevent clicking if already processing
+                                if (likingDocs.has(doc.id)) return;
+                                
+                                setLikingDocs(prev => new Set(prev).add(doc.id));
+                                
+                                try {
+                                  const session = await supabase.auth.getSession();
+                                  const token = session.data.session?.access_token;
+                                  
+                                  if (token) {
+                                    // Determine action based on current state
+                                    const action = doc.user_liked ? 'unlike' : 'like';
+                                    
+                                    const response = await fetch(
+                                      `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/document/${doc.id}/toggle-like?action=${action}`,
+                                      {
+                                        method: 'POST',
+                                        headers: {
+                                          'Authorization': `Bearer ${token}`,
+                                          'Content-Type': 'application/json'
+                                        }
+                                      }
+                                    );
+                                    
+                                    if (response.ok) {
+                                      const data = await response.json();
+                                      // Update local state - toggle user_liked
+                                      setDocuments(prevDocs => 
+                                        prevDocs.map(d => 
+                                          d.id === doc.id 
+                                            ? { ...d, upvotes: data.upvotes, user_liked: !doc.user_liked }
+                                            : d
+                                        )
+                                      );
+                                    } else {
+                                      const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+                                      console.error('Failed to toggle like:', errorData);
+                                    }
+                                  }
+                                } catch (error) {
+                                  console.error('Error toggling like:', error);
+                                } finally {
+                                  setLikingDocs(prev => {
+                                    const newSet = new Set(prev);
+                                    newSet.delete(doc.id);
+                                    return newSet;
+                                  });
+                                }
+                              }}
+                              disabled={!user || likingDocs.has(doc.id)}
+                              className={`flex items-center gap-1 transition-colors ${
+                                !user || likingDocs.has(doc.id) 
+                                  ? 'cursor-not-allowed opacity-50' 
+                                  : 'cursor-pointer hover:opacity-80'
+                              }`}
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                            >
+                              <span className={doc.user_liked ? 'text-neon-cyan' : 'text-muted-foreground'}>
+                                {doc.upvotes ?? 0}
+                              </span>
+                              <ThumbsUp 
+                                className={`w-3 h-3 ${doc.user_liked ? 'fill-neon-cyan text-neon-cyan' : 'text-muted-foreground'}`} 
+                              />
+                            </motion.button>
                             <span>•</span>
                             <span>{new Date(doc.created_at).toLocaleDateString()}</span>
                         </div>

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from supabase_client import supabase
 from .jwt import verify_token
 from pydantic import BaseModel
@@ -91,7 +91,8 @@ async def explore_documents(query: str = None, user = Depends(verify_token)):
         # Start base query
         # We need to filter where user_id != current_user
         # Supabase-py 'neq' fits this.
-        db_query = supabase.table("documents").select("*").neq("user_id", user_id)
+        # Explicitly select all columns including difficulty
+        db_query = supabase.table("documents").select("id, name, user_id, created_at, topic, difficulty, upvotes, questions").neq("user_id", user_id)
 
         if query:
             # Simple OR search on name and topic
@@ -105,11 +106,22 @@ async def explore_documents(query: str = None, user = Depends(verify_token)):
         
         documents = response.data
         
-        # Add random ratings for now provided by the user request
-        # In a real app, this would query a ratings table
-        import random
+        # Return documents with difficulty and upvotes
+        # Frontend will track user_liked state in session
         for doc in documents:
-            doc['rating'] = round(random.uniform(3.5, 5.0), 1)
+            # Ensure upvotes defaults to 0 if None
+            if doc.get('upvotes') is None:
+                doc['upvotes'] = 0
+            
+            # Default user_liked to false - frontend will track this
+            doc['user_liked'] = False
+            
+            # Debug: Log difficulty to verify it's being returned
+            difficulty_value = doc.get('difficulty')
+            if difficulty_value:
+                print(f"Document {doc.get('id')} ({doc.get('name')}): difficulty = {difficulty_value}")
+            else:
+                print(f"Document {doc.get('id')} ({doc.get('name')}): difficulty is NULL or missing")
             
         return documents
 
@@ -174,6 +186,61 @@ def update_document_topic(document_id: str, request: UpdateTopicRequest):
         return response.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/document/{document_id}/toggle-like")
+async def toggle_like_document(document_id: str, user = Depends(verify_token), action: str = Query("like", description="Action: 'like' or 'unlike'")):
+    """
+    Toggle like/unlike for a document. Simple increment/decrement based on action parameter.
+    Frontend tracks whether user has liked it in the current session.
+    """
+    try:
+        # Get current document state
+        doc_response = supabase.table("documents") \
+            .select("upvotes") \
+            .eq("id", document_id) \
+            .single() \
+            .execute()
+        
+        if not doc_response.data:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        current_upvotes = doc_response.data.get("upvotes", 0) or 0
+        
+        # Simple increment/decrement based on action
+        # Frontend will send "like" or "unlike" based on current state
+        if action == "unlike":
+            new_upvotes = max(0, current_upvotes - 1)
+            new_user_liked = False
+        else:  # default to "like"
+            new_upvotes = current_upvotes + 1
+            new_user_liked = True
+        
+        # Update document upvotes count
+        response = supabase.table("documents") \
+            .update({
+                "upvotes": new_upvotes
+            }) \
+            .eq("id", document_id) \
+            .execute()
+        
+        if not response.data:
+            raise HTTPException(status_code=500, detail="Failed to update upvotes")
+        
+        return {
+            "success": True,
+            "action": action,
+            "upvotes": new_upvotes,
+            "user_liked": new_user_liked,
+            "document_id": document_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error in toggle_like_document: {str(e)}")
+        print(f"Traceback:\n{error_traceback}")
+        raise HTTPException(status_code=500, detail=f"Error toggling like: {str(e)}")
 
 @router.post("/document")
 async def save_document(
