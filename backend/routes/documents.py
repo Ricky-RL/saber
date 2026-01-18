@@ -76,15 +76,35 @@ async def get_recent_documents(user = Depends(verify_token)):
 @router.get("/document/{document_id}")
 def get_document(document_id: str):
     """
-    Fetch a specific document by its ID.
+    Fetch a specific document by its ID, including a signed URL for the file.
     """
     try:
         response = supabase.table("documents").select("*").eq("id", document_id).single().execute()
         
         if not response.data:
             raise HTTPException(status_code=404, detail="Document not found")
+        
+        document = response.data
+        
+        # Generate signed URL for the file
+        try:
+            # Note: Supabase Python storage client uses from_ because from is reserved
+            res = supabase.storage.from_("documents").create_signed_url(document["file_path"], 3600)
             
-        return response.data
+            # Extract URL from response (it can be a dict or string depending on version)
+            # Typically returns {'signedURL': '...'}
+            if isinstance(res, dict) and 'signedURL' in res:
+                document['file_url'] = res['signedURL']
+            elif isinstance(res, str):
+                document['file_url'] = res
+            else:
+                 document['file_url'] = res # Fallback
+                
+        except Exception as storage_error:
+            print(f"Error generating signed URL: {storage_error}")
+            document['file_url'] = None # Don't fail completely if storage is down
+
+        return document
     except Exception as e:
         print(f"Error fetching document {document_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
