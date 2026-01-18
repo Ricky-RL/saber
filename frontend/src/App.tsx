@@ -7,7 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import GamePage from './game/GamePage';
 import AvatarPage from './pages/Avatar';
 import WrappedPage from './pages/Wrapped';
-import Extension from './pages/Extension';
+import Explore from './pages/Explore';
 
 
 function App() {
@@ -26,6 +26,7 @@ function App() {
             }
           />
           <Route path="/game" element={<GamePage />} />
+          <Route path="/explore" element={<Explore />} />
           <Route path="/avatar" element={<AvatarPage />} />
           <Route
             path="/wrapped"

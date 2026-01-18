@@ -76,6 +76,49 @@ async def get_recent_documents(user = Depends(verify_token)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/documents/explore")
+async def explore_documents(query: str = None, user = Depends(verify_token)):
+    """
+    Fetch public documents for exploration.
+    Excludes the current user's documents.
+    Supports filtering by name or topic via 'query'.
+    """
+    user_id = user.id
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid user")
+
+    try:
+        # Start base query
+        # We need to filter where user_id != current_user
+        # Supabase-py 'neq' fits this.
+        db_query = supabase.table("documents").select("*").neq("user_id", user_id)
+
+        if query:
+            # Simple OR search on name and topic
+            # Supabase 'or_' syntax: topic.ilike.%query%,name.ilike.%query%
+            db_query = db_query.or_(f"name.ilike.%{query}%,topic.ilike.%{query}%")
+        
+        # Order by created_at desc
+        db_query = db_query.order("created_at", desc=True).limit(50)
+        
+        response = db_query.execute()
+        
+        documents = response.data
+        
+        # Add random ratings for now provided by the user request
+        # In a real app, this would query a ratings table
+        import random
+        for doc in documents:
+            doc['rating'] = round(random.uniform(3.5, 5.0), 1)
+            
+        return documents
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
 @router.get("/document/{document_id}")
 def get_document(document_id: str):
     """

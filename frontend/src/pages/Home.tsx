@@ -13,7 +13,8 @@ import {
   Play,
   Clock,
   User,
-  Trophy
+  Trophy,
+  Search
 } from 'lucide-react';
 
 /*
@@ -323,12 +324,12 @@ export default function Home() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="font-display text-3xl font-bold text-neon-cyan text-glow-cyan mb-2">
-                  DAILY CHALLENGE
+                  HOME
                 </h2>
               </div>
               <div className="flex items-center gap-3 text-neon-pink">
                 <Target className="w-6 h-6" />
-                <span className="font-display text-2xl">🔥 7 Day Streak</span>
+                <span className="font-display text-2xl">🔥 2 Day Streak</span>
               </div>
             </div>
 
@@ -366,6 +367,25 @@ export default function Home() {
                     <div>
                       <h3 className="font-display text-xl font-bold text-neon-magenta mb-1">PLAY NOW</h3>
                       <p className="text-muted-foreground text-sm">Upload & Slash</p>
+                    </div>
+                  </div>
+                </motion.button>
+              </Link>
+
+              <Link to="/explore" className="flex-1">
+                <motion.button
+                  data-testid="button-explore"
+                  className="w-full bg-gradient-to-r from-neon-cyan/20 to-neon-blue/20 border-2 border-neon-cyan rounded-xl p-6 text-left hover:border-neon-cyan hover:box-glow-cyan transition-all"
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-xl bg-neon-cyan/20 flex items-center justify-center">
+                      <Search className="w-7 h-7 text-neon-cyan" />
+                    </div>
+                    <div>
+                      <h3 className="font-display text-xl font-bold text-neon-cyan mb-1">EXPLORE</h3>
+                      <p className="text-muted-foreground text-sm">Discover & Play</p>
                     </div>
                   </div>
                 </motion.button>
