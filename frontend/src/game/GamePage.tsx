@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { HandTracker } from './HandTracker'
 import { Link, useLocation } from 'react-router-dom'
 import { useGameStore } from './GameManager'
@@ -14,9 +14,22 @@ function GamePage() {
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
+  const [audioGenerating, setAudioGenerating] = useState(false)
+  const [generatedAudio, setGeneratedAudio] = useState<ArrayBuffer | null>(null)
+  const [audioGenerationFailed, setAudioGenerationFailed] = useState(false)
+  const audioGenerationInProgress = useRef(false) // Prevent duplicate requests
+  const generatedAudioRef = useRef<ArrayBuffer | null>(null) // Ref to track generated audio for waiting loops
+  const audioGeneratingRef = useRef(false) // Ref to track audio generating state for waiting loops
+  const audioGenerationFailedRef = useRef(false) // Ref to track failure state for waiting loops
   
   const location = useLocation()
-  // const { mode } = location.state || {} <- Removed unused mode
+  const locationState = location.state as { 
+    audioData?: ArrayBuffer; 
+    difficulty?: 'EASY' | 'MEDIUM' | 'HARD'; 
+    documentId?: string;
+    isGeneratingAudio?: boolean;
+  } | null
+
 
   // Upload Stats on Game Over
   useEffect(() => {
@@ -32,7 +45,7 @@ function GamePage() {
             : 0
 
         // Determine Document ID
-        const documentId = (location.state as any)?.documentId
+        const documentId = locationState?.documentId
 
         // Constrain payload
         const payload: any = {
@@ -95,14 +108,103 @@ function GamePage() {
   // --- HARDCODED AUDIO SETUP ---
   const HARDCODED_AUDIO_URL = '/Beat Saber.mp3'
 
-  const processAudioAndStartLevel = async (arrayBuffer: ArrayBuffer, quizQuestions: any[] = []) => {
-    setLoading(true)
+  // Generate audio in background if needed
+  useEffect(() => {
+    const generateAudio = async () => {
+      // Only generate if we need to, haven't already generated, aren't currently generating, and haven't failed
+      // Also check ref to prevent duplicate requests (React StrictMode causes double renders)
+      if (
+        locationState?.isGeneratingAudio && 
+        !generatedAudio && 
+        !audioGenerating && 
+        !audioGenerationFailed &&
+        !audioGenerationInProgress.current
+      ) {
+        audioGenerationInProgress.current = true // Set flag to prevent duplicates
+        setAudioGenerating(true)
+        audioGeneratingRef.current = true // Update ref immediately
+        setAudioGenerationFailed(false)
+        audioGenerationFailedRef.current = false // Update ref immediately
+        try {
+          const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+          const difficulty = locationState.difficulty || 'MEDIUM'
+          const difficultyLower = difficulty.toLowerCase() as 'easy' | 'medium' | 'hard'
+          const endpoint = `${API_URL}/generate-song`
+          const requestBody = { difficulty: difficultyLower }
+          
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody),
+          })
+
+          if (!response.ok) {
+            let errorData
+            let errorText = ''
+            try {
+              errorText = await response.text()
+              errorData = JSON.parse(errorText)
+              
+              // FastAPI validation errors have a specific structure
+              if (errorData.detail && Array.isArray(errorData.detail)) {
+                // Pydantic validation errors
+                const validationErrors = errorData.detail.map((err: any) => 
+                  `${err.loc?.join('.')}: ${err.msg}`
+                ).join(', ')
+                throw new Error(`Validation error: ${validationErrors}`)
+              }
+            } catch (e: any) {
+              if (e.message?.includes('Validation error')) {
+                throw e // Re-throw validation errors
+              }
+              errorData = { detail: errorText || `HTTP ${response.status}: ${response.statusText}` }
+            }
+            throw new Error(errorData.detail || errorData.message || `HTTP error! status: ${response.status}`)
+          }
+
+          const audioArrayBuffer = await response.arrayBuffer()
+          setGeneratedAudio(audioArrayBuffer)
+          generatedAudioRef.current = audioArrayBuffer // Also update ref for waiting loops
+          setAudioGenerating(false)
+          audioGeneratingRef.current = false // Update ref immediately
+          audioGenerationInProgress.current = false // Reset flag
+          console.log('✅ Song generated successfully')
+        } catch (err: any) {
+          console.error('[Audio Generation] Error:', err.message)
+          
+          // Set flags to indicate generation failed so we can use fallback
+          setAudioGenerating(false)
+          audioGeneratingRef.current = false // Update ref immediately
+          setAudioGenerationFailed(true)
+          audioGenerationFailedRef.current = true // Update ref immediately
+          audioGenerationInProgress.current = false // Reset flag even on error
+        }
+      }
+    }
+
+    generateAudio()
+    // Only depend on locationState properties, not the state variables that change during generation
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locationState?.isGeneratingAudio, locationState?.difficulty])
+
+  const processAudioAndStartLevel = async (arrayBuffer: ArrayBuffer, quizQuestions: any[] = [], difficulty: 'EASY' | 'MEDIUM' | 'HARD' = 'MEDIUM') => {
+    // Don't set loading here - it's already set in handleDocumentUpload
     try {
-      // Decode copy for analysis
-      const audioData = await analyzeAudio(arrayBuffer.slice(0)) 
+      // Map difficulty to BPM for fallback beat detection
+      const difficultyBpmMap = {
+        'EASY': 110,
+        'MEDIUM': 130,
+        'HARD': 150
+      }
+      const fallbackBpm = difficultyBpmMap[difficulty]
       
-      // GENERATE LEVEL WITH QUIZ QUESTIONS
-      const generatedLevel = generateLevel(audioData, quizQuestions, 'MEDIUM') 
+      // Decode copy for analysis with fallback BPM
+      const audioData = await analyzeAudio(arrayBuffer.slice(0), fallbackBpm) 
+      
+      // GENERATE LEVEL WITH QUIZ QUESTIONS AND DIFFICULTY
+      const generatedLevel = generateLevel(audioData, quizQuestions, difficulty) 
       
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
       const playbackBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0)) // Decode fresh copy
@@ -111,12 +213,13 @@ function GamePage() {
       setLevelData(generatedLevel)
       setAudioBuffer(playbackBuffer)
       setHasGenerated(true)
+      setLoading(false) // Clear loading state when done
+      console.log('🎮 Game ready to play!')
       
     } catch (error) {
       console.error('Error processing audio:', error)
       alert("Failed to process audio file.")
-    } finally {
-      setLoading(false)
+      setLoading(false) // Make sure to clear loading on error
     }
   }
 
@@ -128,14 +231,57 @@ function GamePage() {
         alert("Please upload a PDF file.")
         return
     }
+    console.log('📄 Document uploaded:', file.name)
 
     setLoading(true)
     
     try {
-        // 1. Fetch Hardcoded Audio First (Parallelize in real app, but sequential is safer for now)
-        const audioResponse = await fetch(HARDCODED_AUDIO_URL)
-        if (!audioResponse.ok) throw new Error("Failed to load game audio")
-        const audioBuffer = await audioResponse.arrayBuffer()
+        // 1. Wait for audio generation if it's still in progress
+        let audioBuffer: ArrayBuffer
+        const difficulty = locationState?.difficulty || 'MEDIUM'
+        
+        if (locationState?.audioData) {
+            // Use pre-generated audio from difficulty selection (if already completed)
+            audioBuffer = locationState.audioData
+        } else if (locationState?.isGeneratingAudio) {
+            // Wait for audio generation to complete (with timeout) or use fallback if failed
+            if (audioGenerationFailed) {
+                // Generation already failed, use fallback immediately
+                const audioResponse = await fetch(HARDCODED_AUDIO_URL)
+                if (!audioResponse.ok) throw new Error("Failed to load fallback game audio")
+                audioBuffer = await audioResponse.arrayBuffer()
+            } else if (generatedAudioRef.current) {
+                // Audio already generated, use it (check ref first for immediate availability)
+                audioBuffer = generatedAudioRef.current
+            } else if (generatedAudio) {
+                // Audio already generated, use it (fallback to state)
+                audioBuffer = generatedAudio
+            } else {
+                // Wait for audio generation to complete (with timeout)
+                const maxWaitTime = 60000 // 60 seconds max wait
+                const startTime = Date.now()
+                // Use refs in the condition to avoid stale closure issues
+                while ((audioGeneratingRef.current || !generatedAudioRef.current) && !audioGenerationFailedRef.current && (Date.now() - startTime < maxWaitTime)) {
+                    await new Promise(resolve => setTimeout(resolve, 500)) // Check every 500ms
+                }
+                
+                // Check ref first, then state
+                const finalAudio = generatedAudioRef.current || generatedAudio
+                if (!finalAudio || audioGenerationFailedRef.current) {
+                    // Fallback to hardcoded audio if generation failed or timed out
+                    const audioResponse = await fetch(HARDCODED_AUDIO_URL)
+                    if (!audioResponse.ok) throw new Error("Failed to load fallback game audio")
+                    audioBuffer = await audioResponse.arrayBuffer()
+                } else {
+                    audioBuffer = finalAudio
+                }
+            }
+        } else {
+            // Fallback to hardcoded audio (for backward compatibility)
+            const audioResponse = await fetch(HARDCODED_AUDIO_URL)
+            if (!audioResponse.ok) throw new Error("Failed to load game audio")
+            audioBuffer = await audioResponse.arrayBuffer()
+        }
 
         // 2. Upload PDF & Generate Quiz
         /*
@@ -352,7 +498,7 @@ function GamePage() {
             }
         })
         
-        await processAudioAndStartLevel(audioBuffer, mappedQuestions)
+        await processAudioAndStartLevel(audioBuffer, mappedQuestions, difficulty)
 
     } catch (error: any) {
         console.error("Error setting up game:", error)
@@ -421,8 +567,53 @@ function GamePage() {
           }}>
               
               <h2 style={{ marginBottom: '20px', fontFamily: 'Orbitron' }}>STUDY SABER</h2>
+              
+              {/* Audio Generation Status */}
+              {audioGenerating && (
+                <div style={{ 
+                  marginBottom: '20px', 
+                  padding: '15px 30px', 
+                  background: 'rgba(0, 255, 255, 0.1)', 
+                  border: '2px solid rgba(0, 255, 255, 0.5)', 
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <div className="spinner" style={{ width: '20px', height: '20px', border: '3px solid rgba(0, 255, 255, 0.3)', borderTop: '3px solid #00ffff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                  <p style={{ color: '#00ffff', margin: 0, fontFamily: 'Orbitron', fontSize: '0.9rem' }}>
+                    Generating your custom song... ({locationState?.difficulty || 'MEDIUM'})
+                  </p>
+                </div>
+              )}
+              
+              {audioGenerationFailed && !audioGenerating && (
+                <div style={{ 
+                  marginBottom: '20px', 
+                  padding: '15px 30px', 
+                  background: 'rgba(255, 100, 100, 0.1)', 
+                  border: '2px solid rgba(255, 100, 100, 0.5)', 
+                  borderRadius: '10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '10px'
+                }}>
+                  <p style={{ color: '#ff6464', margin: 0, fontFamily: 'Orbitron', fontSize: '0.9rem', textAlign: 'center' }}>
+                    ⚠️ Song generation unavailable. Using default audio instead.
+                  </p>
+                  <p style={{ color: '#ff6464', margin: 0, fontFamily: 'Orbitron', fontSize: '0.75rem', opacity: 0.8, textAlign: 'center' }}>
+                    Backend server not running. Start it with: <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px' }}>cd backend && uvicorn main:app --reload --port 8000</code>
+                  </p>
+                </div>
+              )}
+
               <p style={{ marginBottom: '40px', color: '#aaa', maxWidth: '400px', textAlign: 'center' }}>
-                {loading ? 'Analyzing Document & Generating Quiz...' : 'Upload your study notes (PDF) to convert them into a rhythm game level! The game will last 60 seconds.'}
+                {loading 
+                  ? (audioGenerating 
+                      ? 'Generating song & analyzing document...' 
+                      : 'Analyzing Document & Generating Quiz...')
+                  : 'Upload your study notes (PDF) to convert them into a rhythm game level! The game will last 60 seconds.'}
               </p>
 
               {!loading && (

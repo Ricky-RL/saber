@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import GamePage from './game/GamePage';
 import AvatarPage from './pages/Avatar';
 import WrappedPage from './pages/Wrapped';
+import DifficultySelection from './pages/DifficultySelection';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/difficulty" element={<DifficultySelection />} />
           <Route path="/game" element={<GamePage />} />
           <Route path="/avatar" element={<AvatarPage />} />
           <Route
