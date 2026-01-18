@@ -140,7 +140,7 @@ function GameLoop() {
       else if (audioBuffer && time > audioBuffer.duration - 3.0) {
            endGame()
       }
-      else if (time > 45) { // Hard limit fallback extended
+      else if (time > 90) { // Hard limit fallback extended
           endGame()
       }
 
@@ -234,7 +234,7 @@ function GameLoop() {
       // Distance = Speed * Time. 
       // Speed 50 * 2.0s = 100 meters spawn distance.
       // Speed 12 * 2.0s = 24 meters spawn distance.
-      const SPEED = 12
+      const SPEED = 20
       
       // 1. SPAWN Flying Header
       setHeaders(prev => [...prev, {

@@ -5,7 +5,7 @@ import { useGameStore } from './GameManager'
 import Scene from './Scene'
 import { UI } from './UI'
 import { analyzeAudio } from './audio/beatDetector'
-import { generateLevel, PLACEHOLDER_QUESTIONS } from './audio/levelGenerator'
+import { generateLevel } from './audio/levelGenerator'
 import { useAuth } from '../contexts/Auth'
 import { supabase } from '../supabaseClient'
 
@@ -16,7 +16,7 @@ function GamePage() {
   const [hasGenerated, setHasGenerated] = useState(false)
   
   const location = useLocation()
-  const { mode } = location.state || {}
+  // const { mode } = location.state || {} <- Removed unused mode
 
   // Upload Stats on Game Over
   useEffect(() => {
@@ -74,13 +74,17 @@ function GamePage() {
       setHandPositions(left, right)
   }
 
-  const processAudio = async (arrayBuffer: ArrayBuffer) => {
+  // --- HARDCODED AUDIO SETUP ---
+  const HARDCODED_AUDIO_URL = '/Beat Saber.mp3'
+
+  const processAudioAndStartLevel = async (arrayBuffer: ArrayBuffer, quizQuestions: any[] = []) => {
     setLoading(true)
     try {
       // Decode copy for analysis
       const audioData = await analyzeAudio(arrayBuffer.slice(0)) 
       
-      const generatedLevel = generateLevel(audioData, PLACEHOLDER_QUESTIONS, 'MEDIUM') // Default to Medium
+      // GENERATE LEVEL WITH QUIZ QUESTIONS
+      const generatedLevel = generateLevel(audioData, quizQuestions, 'MEDIUM') 
       
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
       const playbackBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0)) // Decode fresh copy
@@ -90,9 +94,6 @@ function GamePage() {
       setAudioBuffer(playbackBuffer)
       setHasGenerated(true)
       
-      // Auto-start or wait for user? Hologram waits.
-      // startGame() 
-      
     } catch (error) {
       console.error('Error processing audio:', error)
       alert("Failed to process audio file.")
@@ -101,26 +102,258 @@ function GamePage() {
     }
   }
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-    const arrayBuffer = await file.arrayBuffer()
-    await processAudio(arrayBuffer)
+
+    if (file.type !== 'application/pdf') {
+        alert("Please upload a PDF file.")
+        return
+    }
+
+    setLoading(true)
+    
+    try {
+        // 1. Fetch Hardcoded Audio First (Parallelize in real app, but sequential is safer for now)
+        const audioResponse = await fetch(HARDCODED_AUDIO_URL)
+        if (!audioResponse.ok) throw new Error("Failed to load game audio")
+        const audioBuffer = await audioResponse.arrayBuffer()
+
+        // 2. Upload PDF & Generate Quiz
+        /*
+        const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('user_id', user?.id || 'guest')
+
+        const quizResponse = await fetch(`${API_URL}/generate-quiz`, {
+            method: 'POST',
+            body: formData,
+            // headers: { 'Authorization': ... } // If needed later
+        })
+
+        if (!quizResponse.ok) {
+            const err = await quizResponse.json()
+            throw new Error(err.detail || "Quiz generation failed")
+        }
+
+        const quizData = await quizResponse.json()
+        */
+       
+        // HARDCODED DATA
+        const quizData = {
+            "document_id": "DOC_a5831ebb",
+            "genre": "Regression Testing",
+            "questions": [
+                {
+                    "id": 1,
+                    "type": "mcq",
+                    "question": "What is regression testing?",
+                    "options": [
+                        "Return to former state",
+                        "Ensure no new faults",
+                        "Improve software quality",
+                        "Add new capabilities"
+                    ],
+                    "correct_answer": "Ensure no new faults"
+                },
+                {
+                    "id": 2,
+                    "type": "true_false",
+                    "question": "Regression testing is only needed for corrective maintenance.",
+                    "options": [],
+                    "correct_answer": false
+                },
+                {
+                    "id": 3,
+                    "type": "mcq",
+                    "question": "Which maintenance type requires regression testing?",
+                    "options": [
+                        "Corrective only",
+                        "Adaptive only",
+                        "Perfective only",
+                        "All types"
+                    ],
+                    "correct_answer": "All types"
+                },
+                {
+                    "id": 4,
+                    "type": "true_false",
+                    "question": "Regression testing is required for all maintenance types.",
+                    "options": [],
+                    "correct_answer": true
+                },
+                {
+                    "id": 5,
+                    "type": "mcq",
+                    "question": "What does regression testing reveal?",
+                    "options": [
+                        "New features",
+                        "Side effects",
+                        "Unused code",
+                        "Performance issues"
+                    ],
+                    "correct_answer": "Side effects"
+                },
+                {
+                    "id": 6,
+                    "type": "mcq",
+                    "question": "Why might a test fail after a change?",
+                    "options": [
+                        "Code improved",
+                        "Specs changed",
+                        "Test code perfect",
+                        "No new bugs"
+                    ],
+                    "correct_answer": "Specs changed"
+                },
+                {
+                    "id": 7,
+                    "type": "true_false",
+                    "question": "A regression bug in an existing feature is less critical than a bug in new functionality.",
+                    "options": [],
+                    "correct_answer": false
+                },
+                {
+                    "id": 8,
+                    "type": "mcq",
+                    "question": "What is a challenge of regression testing?",
+                    "options": [
+                        "Low execution time",
+                        "Small test suite",
+                        "High maintenance cost",
+                        "Simple test selection"
+                    ],
+                    "correct_answer": "High maintenance cost"
+                },
+                {
+                    "id": 9,
+                    "type": "true_false",
+                    "question": "Test suite size is proportional to change size in regression testing.",
+                    "options": [],
+                    "correct_answer": false
+                },
+                {
+                    "id": 10,
+                    "type": "mcq",
+                    "question": "What does test selection aim to achieve?",
+                    "options": [
+                        "Run all tests",
+                        "Select relevant tests",
+                        "Increase execution time",
+                        "Remove valid tests"
+                    ],
+                    "correct_answer": "Select relevant tests"
+                },
+                {
+                    "id": 11,
+                    "type": "true_false",
+                    "question": "Test prioritization is used when not all selected tests can be executed.",
+                    "options": [],
+                    "correct_answer": true
+                },
+                {
+                    "id": 12,
+                    "type": "mcq",
+                    "question": "Which is a criterion for test prioritization?",
+                    "options": [
+                        "Code complexity",
+                        "Test coverage",
+                        "Developer preference",
+                        "Bug frequency"
+                    ],
+                    "correct_answer": "Test coverage"
+                },
+                {
+                    "id": 13,
+                    "type": "true_false",
+                    "question": "Minimization reduces a test suite by removing redundant tests.",
+                    "options": [],
+                    "correct_answer": true
+                },
+                {
+                    "id": 14,
+                    "type": "mcq",
+                    "question": "What is a 'silent horror' in testing?",
+                    "options": [
+                        "Test fails incorrectly",
+                        "Test passes incorrectly",
+                        "Production code fails",
+                        "Test code is buggy"
+                    ],
+                    "correct_answer": "Test passes incorrectly"
+                },
+                {
+                    "id": 15,
+                    "type": "true_false",
+                    "question": "Test code is less likely to contain errors than production code.",
+                    "options": [],
+                    "correct_answer": false
+                }
+            ],
+            "user_id": "d818162b-ab40-4626-a2a6-0d92cefd3746"
+        }
+
+        console.log("Quiz Generated (HARDCODED):", quizData)
+
+        // 3. Start Game with Audio + Questions
+        // Map backend questions to Game format if needed, but assuming they match broadly.
+        // Backend returns: { questions: [ { id, type, question, options, correct_answer } ... ] }
+        // We need to map this to QuestionData format expected by generateLevel.
+
+        const mappedQuestions = quizData.questions.map((q: any) => {
+            // Check type mapping
+            let qType = 'MCQ'
+            if (q.type === 'true_false') qType = 'TRUE_FALSE'
+
+            // Map Answers
+            let answers = []
+            if (qType === 'TRUE_FALSE') {
+                 // Backend: correct_answer is boolean true/false
+                 // Content: question
+                 answers = [
+                     { text: "F", isCorrect: q.correct_answer === false }, 
+                     { text: "T", isCorrect: q.correct_answer === true }
+                 ]
+            } else {
+                // MCQ
+                // Backend: options [], correct_answer (string matching one option)
+                answers = q.options.map((opt: string) => ({
+                    text: opt,
+                    isCorrect: opt === q.correct_answer
+                }))
+            }
+
+            return {
+                id: q.id || `q_${Math.random()}`,
+                type: qType,
+                content: {
+                    questionText: q.question,
+                    answers: answers
+                }
+            }
+        })
+        
+        await processAudioAndStartLevel(audioBuffer, mappedQuestions)
+
+    } catch (error: any) {
+        console.error("Error setting up game:", error)
+        alert(`Error: ${error.message}`)
+        setLoading(false)
+    }
   }
 
-  // Auto-load logic
+  // Auto-load logic (Development shortcut - preserves old behavior if needed, or remove?)
+  // Keeping it but disabling auto-start if no document.
+  // Actually, user wants "unless we have a document (pdf) ready... you can't run the game"
+  // So 'auto' mode might need to be repurposed or ignored for now.
+  /*
   useEffect(() => {
     if (mode === 'auto') {
-      setLoading(true)
-      fetch('/Beat Saber.mp3')
-        .then(res => res.arrayBuffer())
-        .then(buffer => processAudio(buffer))
-        .catch(err => {
-            console.error(err)
-            setLoading(false)
-        })
+      // ...
     }
   }, [mode])
+  */ 
 
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#000', color: '#fff', position: 'relative' }}>
@@ -169,28 +402,51 @@ function GamePage() {
               position: 'relative' 
           }}>
               
-              <p style={{ marginBottom: '20px' }}>
-                {loading ? 'Loading...' : 'Upload a song to generate a level'}
+              <h2 style={{ marginBottom: '20px', fontFamily: 'Orbitron' }}>STUDY SABER</h2>
+              <p style={{ marginBottom: '40px', color: '#aaa', maxWidth: '400px', textAlign: 'center' }}>
+                {loading ? 'Analyzing Document & Generating Quiz...' : 'Upload your study notes (PDF) to convert them into a rhythm game level! The game will last 60 seconds.'}
               </p>
 
               {!loading && (
-                  <input 
-                    type="file" 
-                    accept="audio/mp3, audio/wav" 
-                    onChange={handleFileUpload}
-                    disabled={loading}
-                    style={{ 
-                        padding: '10px', 
+                  <div style={{ position: 'relative', overflow: 'hidden', display: 'inline-block' }}>
+                    <button style={{ 
+                        padding: '15px 30px', 
                         fontSize: '1.2rem', 
-                        background: '#333', 
-                        border: '1px solid #666', 
-                        color: 'white',
-                        borderRadius: '8px'
-                    }}
-                  />
+                        background: '#00ffff', 
+                        border: 'none', 
+                        color: 'black',
+                        borderRadius: '30px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        fontFamily: 'Orbitron',
+                        boxShadow: '0 0 15px #00ffff'
+                    }}>
+                        UPLOAD PDF
+                    </button>
+                    <input 
+                        type="file" 
+                        accept="application/pdf" 
+                        onChange={handleDocumentUpload}
+                        style={{ 
+                            position: 'absolute', 
+                            left: 0, 
+                            top: 0, 
+                            opacity: 0, 
+                            width: '100%', 
+                            height: '100%', 
+                            cursor: 'pointer'
+                        }}
+                    />
+                  </div>
               )}
 
-              {loading && <p style={{ marginTop: '20px', color: '#00ffff' }}>Processing AI Level Generation...</p>}
+              {loading && (
+                  <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <div className="spinner" style={{ width: '40px', height: '40px', border: '4px solid #333', borderTop: '4px solid #00ffff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+                      <p style={{ marginTop: '15px', color: '#00ffff' }}>AI is crafting your quiz...</p>
+                      <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
+                  </div>
+              )}
           </div>
       )}
 

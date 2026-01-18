@@ -5,10 +5,39 @@ import Lightsaber from './LightsaberGenerator'
 import { useGameStore } from './GameManager'
 
 // --- CONFIGURATION ---
-const MOVEMENT_SCALE = 1.3       // Higher = More movement for less hand motion (Sensitivity)
-const SMOOTHING_FACTOR = 0.12    // Higher = Faster/Snappier, Lower = Smoother/Laggy
-const ROTATION_SENSITIVITY = 0.7 // How much wrist angle affects saber tilt (Higher = steep angle for small wrist bend)
-const ROTATION_SMOOTHING = 0.2   // Speed of rotation: Higher = Snappy flick, Lower = Slow/Smooth
+
+// MOVEMENT_SCALE: Calibration multiplier for hand position.
+// Controls how "far" the saber moves on screen relative to your physical hand movement.
+// Higher Value (e.g. 2.0) = Saber moves a lot for small hand movements (High Sensitivity).
+// Lower Value (e.g. 1.0) = Saber moves 1:1 with hand, requires larger physical reach.
+const MOVEMENT_SCALE = 1.3       
+
+// SMOOTHING_FACTOR: Linear Interpolation (Lerp) speed for POSITION.
+// Controls how "laggy" or "smooth" the saber movement is.
+// Higher (e.g. 0.3) = Very snappy, instant response, but might jitter if tracking is noisy.
+// Lower (e.g. 0.05) = Very smooth, cinematic, but feels floaty/laggy.
+const SMOOTHING_FACTOR = 0.12    
+
+// ROTATION_SENSITIVITY: Multiplier for wrist angle -> saber rotation.
+// Controls how much the saber rotates when you twist your wrist.
+// Higher (e.g. 1.5) = Small wrist twists cause large saber rotations (Easier to get angles).
+// Lower (e.g. 0.5) = Requires physically rotating hand 90 degrees to get 90 degree saber.
+// INCREASED based on user feedback requesting more sensitivity.
+const ROTATION_SENSITIVITY = 1.3 
+
+// ROLL_MULTIPLIER: Additional multiplier specifically for Z-Axis (Twist) rotation.
+// Used to tune the 'flick' rotation independently of general sensitivity.
+const ROLL_MULTIPLIER = 1.5
+
+// PITCH_MULTIPLIER: Additional multiplier for X-Axis (Forward/Down) rotation.
+// Used to accentuate the "chop" motion when flicking wrist down.
+const PITCH_MULTIPLIER = 2.5
+
+// ROTATION_SMOOTHING: Linear Interpolation (Lerp) speed for ROTATION.
+// Controls how fast the saber rotates to match your wrist.
+// Higher = Instant rotation (Snap).
+// Lower = Smooth, weighted rotation.
+const ROTATION_SMOOTHING = 0.2   
 
 interface SaberControllerProps {
   side: 'left' | 'right'
@@ -69,26 +98,42 @@ export function SaberController({ side, color, isPaused = false }: SaberControll
         
         // BASE TILT from Velocity (Original)
         const velTiltX = velocity.current.y * 0.25 
-        const velTiltZ = -velocity.current.x * 0.25 
         
         // WRIST ANGLE (New)
+        // Decompose Angle into Pitch (X) and Roll (Z)
+        // Hand Angle: 0 = Up, PI/2 = Right, PI = Down, 3PI/2 = Left
+        let wristRoll = 0
         let wristPitch = 0
+        
         if (handPos && handPos.angle !== undefined) {
-            // handPos.angle: 0 = Up, PI/2 = Right (or Left?), PI = Down.
-            // Saber: 0 = Up. -PI/2 = Forward.
-            // If I tilt hand DOWN (angle -> 3.14), Saber should tilt FORWARD (-PI/2 or -PI?).
-            // Let's Map: 0 (Up) -> 0.
-            // PI (Down) -> -PI/2 (Forward/Down).
-            // So: pitch = -angle * 0.5?
-            // If angle = PI (3.14), pitch = -1.57.
-            // If angle = 0, pitch = 0.
-            wristPitch = -handPos.angle * ROTATION_SENSITIVITY // 0.8 factor to exaggerate/tune
+             const angle = handPos.angle
+             
+             // ROLL (Z-Axis): Tilting Left/Right
+             // Use SIN to capture Left/Right deviation
+             // Sin(0) = 0. Sin(PI/2) = 1. Sin(PI) = 0.
+             // User said mirroring was wrong. Let's flip sign to positive.
+             // If Tilt Right (Positive Angle), we want Roll Right (Negative Z?). 
+             // Try positive mapping first as per "other way around" request.
+             wristRoll = Math.sin(angle) * ROTATION_SENSITIVITY * ROLL_MULTIPLIER 
+
+             // PITCH (X-Axis): Flicking Down/Forward
+             // Use COS to capture Up/Down
+             // Cos(0) = 1 (Up). Cos(PI) = -1 (Down).
+             // We want Pitch when Down.
+             // If Down (PI), Cos is -1. We want Hit Down (Negative X? Or Positive X?).
+             // Usually Forward/Down hit is Negative X (-90 deg).
+             // Let's map Down to Negative Pitch.
+             if (Math.cos(angle) < 0) { // Only when pointing down
+                 // Map -1 (Down) to max pitch. 0 (Side) to 0 pitch.
+                 // -cos(angle) is 0..1. 
+                 // mult by -1 to get negative pitch.
+                 wristPitch = Math.cos(angle) * ROTATION_SENSITIVITY * PITCH_MULTIPLIER 
+             }
         }
 
         // Combine
-        // If static, follow wrist. If moving fast, velocity adds "drag".
-        const targetRotX = wristPitch + velTiltX 
-        const targetRotZ = velTiltZ // Side tilt from movement
+        const targetRotX = velTiltX + wristPitch
+        const targetRotZ = wristRoll // Roll from wrist twist
         
         groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, targetRotX, ROTATION_SMOOTHING)
         groupRef.current.rotation.z = THREE.MathUtils.lerp(groupRef.current.rotation.z, targetRotZ, ROTATION_SMOOTHING)
