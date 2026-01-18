@@ -2,13 +2,12 @@
 Lyra music generation route - generates electronic songs for Beat Saber-like gameplay.
 """
 import base64
-import io
 import os
-import requests
-from fastapi import APIRouter, HTTPException, Response
+import httpx
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from enum import Enum
-from pydub import AudioSegment
 from config import GOOGLE_PROJECT_ID, GOOGLE_LOCATION, GOOGLE_SERVICE_ACCOUNT_PATH
 
 # Try to import google-auth for OAuth token generation
@@ -72,6 +71,8 @@ def get_oauth_token() -> str:
         )
     
     try:
+        credentials = None
+        
         # Method 1: Try service account credentials from GOOGLE_APPLICATION_CREDENTIALS env var
         creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
         if creds_path and os.path.exists(creds_path):
@@ -79,23 +80,22 @@ def get_oauth_token() -> str:
                 creds_path,
                 scopes=["https://www.googleapis.com/auth/cloud-platform"]
             )
-            credentials.refresh(Request())
-            return credentials.token
         
         # Method 2: Try service account from config (GOOGLE_SERVICE_ACCOUNT_PATH)
-        if GOOGLE_SERVICE_ACCOUNT_PATH and os.path.exists(GOOGLE_SERVICE_ACCOUNT_PATH):
+        elif GOOGLE_SERVICE_ACCOUNT_PATH and os.path.exists(GOOGLE_SERVICE_ACCOUNT_PATH):
             credentials = service_account.Credentials.from_service_account_file(
                 GOOGLE_SERVICE_ACCOUNT_PATH,
                 scopes=["https://www.googleapis.com/auth/cloud-platform"]
             )
-            credentials.refresh(Request())
-            return credentials.token
         
         # Method 3: Try Application Default Credentials (ADC)
         # This works if user ran: gcloud auth application-default login
-        credentials, project = google.auth.default(
-            scopes=["https://www.googleapis.com/auth/cloud-platform"]
-        )
+        else:
+            credentials, project = google.auth.default(
+                scopes=["https://www.googleapis.com/auth/cloud-platform"]
+            )
+        
+        # Refresh token and return it
         credentials.refresh(Request())
         return credentials.token
         
@@ -114,25 +114,7 @@ def get_oauth_token() -> str:
         )
 
 
-def convert_wav_to_mp3(wav_data: bytes) -> bytes:
-    """
-    Convert WAV audio data to MP3 format.
-    
-    Args:
-        wav_data: WAV audio data as bytes
-        
-    Returns:
-        MP3 audio data as bytes
-    """
-    # Load WAV from bytes
-    audio = AudioSegment.from_wav(io.BytesIO(wav_data))
-    # Export as MP3
-    mp3_buffer = io.BytesIO()
-    audio.export(mp3_buffer, format="mp3", bitrate="192k")
-    return mp3_buffer.getvalue()
-
-
-def generate_song_with_lyra(bpm: int) -> bytes:
+async def generate_song_with_lyra(bpm: int) -> bytes:
     """
     Generate an electronic song using Google's Lyria API via Vertex AI.
     
@@ -181,7 +163,9 @@ def generate_song_with_lyra(bpm: int) -> bytes:
         }
     }
     
-    response = requests.post(url, headers=headers, json=payload)
+    # Use httpx for async requests (faster than requests)
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(url, headers=headers, json=payload)
     
     # Provide helpful error messages for common issues
     if response.status_code == 401 or response.status_code == 403:
@@ -214,6 +198,7 @@ def generate_song_with_lyra(bpm: int) -> bytes:
         # Primary structure: bytesBase64Encoded field
         if "bytesBase64Encoded" in prediction:
             audio_base64 = prediction["bytesBase64Encoded"]
+            # Decode and return audio bytes directly
             audio_bytes = base64.b64decode(audio_base64)
             return audio_bytes
         
@@ -246,6 +231,7 @@ def generate_song_with_lyra(bpm: int) -> bytes:
 async def generate_song(request: GenerateSongRequest):
     """
     Generate an electronic song based on difficulty level.
+    Streams WAV audio directly to client for faster response.
     
     Parameters:
     - difficulty: Game difficulty level (easy, medium, hard)
@@ -254,36 +240,44 @@ async def generate_song(request: GenerateSongRequest):
       - hard: 150 BPM
     
     Returns:
-    - MP3 audio file (converted from WAV, ~30 seconds)
+    - WAV audio file stream (~30 seconds, 48 kHz)
     
-    Note: Works with Google AI Studio free tier, but subject to rate limits.
-    Lyria API returns WAV, which is automatically converted to MP3.
+    Note: Returns WAV format directly (no conversion) for faster response.
+    Browsers can play WAV natively. Saves ~1-2 seconds by skipping MP3 conversion.
     """
     difficulty = request.difficulty
     bpm = get_bpm_from_difficulty(difficulty)
     genre = "electronic"  # Fixed genre
     
     try:
-        # Get WAV from Lyria API
-        wav_data = generate_song_with_lyra(bpm)
-        # Convert WAV to MP3
-        mp3_data = convert_wav_to_mp3(wav_data)
+        # Get WAV audio directly (no conversion - saves ~1-2 seconds)
+        wav_data = await generate_song_with_lyra(bpm)
         
-        return Response(
-            content=mp3_data,
-            media_type="audio/mpeg",
+        # Use StreamingResponse to send data immediately as it's ready
+        # This allows the client to start receiving data faster
+        async def audio_generator():
+            yield wav_data
+        
+        return StreamingResponse(
+            audio_generator(),
+            media_type="audio/wav",
             headers={
-                "Content-Disposition": f"attachment; filename=electronic_{difficulty}_{bpm}bpm.mp3",
+                "Content-Disposition": f"attachment; filename=electronic_{difficulty}_{bpm}bpm.wav",
                 "X-Genre": genre,
                 "X-BPM": str(bpm),
                 "X-Difficulty": difficulty.value,
             }
         )
         
-    except requests.exceptions.RequestException as e:
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=f"Failed to generate song: {str(e)}"
+        )
+    except httpx.RequestError as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to generate song: {str(e)}"
+            detail=f"Request failed: {str(e)}"
         )
     except Exception as e:
         raise HTTPException(
