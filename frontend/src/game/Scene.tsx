@@ -52,6 +52,7 @@ function GameLoop() {
   const [explosions, setExplosions] = useState<{id: number, position: [number, number, number], color: string}[]>([])
   const [currentQuestionText, setCurrentQuestionText] = useState<string | null>(null) // Static HUD Text
   const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null) // TRACK ID to prevent overwriting
+  const [sfxMap, setSfxMap] = useState<Record<string, AudioBuffer>>({}) // SFX Map
 
   
 
@@ -83,6 +84,60 @@ function GameLoop() {
          currentQuestionTimeoutTimeRef.current = 0
      }
   }, [isPlaying])
+
+  // --- LOAD SFX ---
+  useEffect(() => {
+    const loadSound = async (name: string, url: string) => {
+        try {
+            const res = await fetch(url)
+            const buffer = await res.arrayBuffer()
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+            const decoded = await ctx.decodeAudioData(buffer)
+            setSfxMap(prev => ({ ...prev, [name]: decoded }))
+        } catch (e) {
+            console.error(`SFX Load Error (${name}):`, e)
+        }
+    }
+
+    loadSound('break', '/sounds/block-break.mp3')
+    loadSound('v2', '/sounds/valorant-2-kills.mp3')
+    loadSound('v3', '/sounds/valorant-3-kills.mp3')
+    loadSound('v4', '/sounds/valorant-4-kills.mp3')
+  }, [])
+
+  // Helper to play SFX
+  const playBreakSound = (combo: number) => {
+      const ctx = audioContext || new (window.AudioContext || (window as any).webkitAudioContext)()
+      if (!ctx) return
+
+      let buffer = sfxMap['break'] // Default
+
+      // Logic:
+      // Combo 1, 2 = Break (Default)
+      // Combo 3 = 2-Kills
+      // Combo 4 = 3-Kills
+      // Combo 5+ = 4-Kills
+      if (combo === 3) buffer = sfxMap['v2'] || buffer
+      else if (combo === 4) buffer = sfxMap['v3'] || buffer
+      else if (combo >= 5) buffer = sfxMap['v4'] || buffer
+      
+      if (!buffer) return
+
+      // Resume if suspended (browser policy)
+      if (ctx.state === 'suspended') ctx.resume()
+
+      try {
+        const source = ctx.createBufferSource()
+        source.buffer = buffer
+        const gain = ctx.createGain()
+        gain.gain.value = 0.5 // Volume
+        source.connect(gain)
+        gain.connect(ctx.destination)
+        source.start(0)
+      } catch (e) {
+        console.error("SFX Play Error", e)
+      }
+  }
 
   // --- AUDIO LOGIC ---
   // ... (unchanged)
@@ -664,6 +719,14 @@ function GameLoop() {
           position: [hitPos.x, hitPos.y, hitPos.z], 
           color: block.color || (isCorrect ? '#00ff00' : '#ff0000') 
       }])
+
+      // Play Sound
+      const currentCombo = useGameStore.getState().combo
+      if (isCorrect) {
+          playBreakSound(currentCombo + 1)
+      } else {
+          playBreakSound(1) // Default break sound for wrong answers
+      }
       
       // Remove ALL blocks belonging to this question (using explicit ID)
       setBlocks(prev => prev.filter(b => b.questionId !== questionId))

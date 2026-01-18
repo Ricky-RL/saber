@@ -10,7 +10,7 @@ import { useAuth } from '../contexts/Auth'
 import { supabase } from '../supabaseClient'
 
 function GamePage() {
-  const { setHandPositions, setLevelData, setAudioBuffer, isGameOver, levelData, correctCount, maxCombo, score, setEquippedItems, webcamVisible, setWebcamVisible } = useGameStore()
+  const { setHandPositions, setLevelData, setAudioBuffer, isGameOver, levelData, correctCount, maxCombo, score, setEquippedItems, webcamVisible, setWebcamVisible, restartTrigger } = useGameStore()
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
@@ -36,6 +36,19 @@ function GamePage() {
     }
   }, [locationState?.difficulty])
 
+
+
+  // RESTART LISTENER
+  useEffect(() => {
+     if (restartTrigger > 0) {
+         console.log("🔄 RESTART TRIGGERED");
+         setHasGenerated(false)
+         fetchAttemptedRef.current = false // reset this to allow re-fetch
+         
+         // Logic will now fall through to the main fetching useEffect because hasGenerated is false
+         // and queryDocumentId / locationState.documentId is still present.
+     }
+  }, [restartTrigger])
 
   // Upload Stats on Game Over
   useEffect(() => {
@@ -321,6 +334,76 @@ function GamePage() {
         difficulty
       })
 
+      
+      const TARGET_DURATION = 60.0
+      let processedBuffer = arrayBuffer
+
+      // AUDIO LOOPING / TRIMMING LOGIC
+      try {
+          // Decode first to check duration
+          const ctxCheck = new (window.AudioContext || (window as any).webkitAudioContext)()
+          const tempBuffer = await ctxCheck.decodeAudioData(arrayBuffer.slice(0))
+          
+          if (Math.abs(tempBuffer.duration - TARGET_DURATION) > 0.1) {
+             console.log(`⚠️ Audio Duration is ${tempBuffer.duration.toFixed(2)}s. Target: 60s. Processing...`)
+             
+             // Create Target Buffer
+             const targetFrames = Math.ceil(TARGET_DURATION * tempBuffer.sampleRate)
+             const newAudioBuffer = ctxCheck.createBuffer(tempBuffer.numberOfChannels, targetFrames, tempBuffer.sampleRate)
+             
+             for (let channel = 0; channel < tempBuffer.numberOfChannels; channel++) {
+                 const nowBuffering = newAudioBuffer.getChannelData(channel)
+                 const sourceData = tempBuffer.getChannelData(channel)
+                 
+                 // Fill exactly 60s
+                 let cursor = 0
+                 while (cursor < targetFrames) {
+                     const spaceLeft = targetFrames - cursor
+                     const amountToCopy = Math.min(spaceLeft, sourceData.length)
+                     
+                     // Perform copy
+                     for (let i = 0; i < amountToCopy; i++) {
+                         nowBuffering[cursor + i] = sourceData[i]
+                     }
+                     
+                     cursor += amountToCopy
+                 }
+             }
+             
+             // Now Encode back to ArrayBuffer? 
+             // Logic in generateLevel expects Metadata from `analyzeAudio`. 
+             // `analyzeAudio` takes ArrayBuffer... 
+             // `web-audio-beat-detector` typically needs raw buffer.
+             // We can just pass the AudioBuffer to `analyzeAudio` if we modify it??
+             // Wait, `analyzeAudio` likely decodes internally.
+             
+             // Actually, `analyzeAudio` takes ArrayBuffer. We need to convert AudioBuffer BACK to WAV/ArrayBuffer 
+             // OR modify `analyzeAudio` to accept AudioBuffer.
+             // Easier: Just use the AudioBuffer we created for playback (`setAudioBuffer`),
+             // BUT `generateLevel` needs `AudioData` from analysis.
+             
+             // Let's assume we can't easily re-encode to ArrayBuffer in browser without external lib.
+             // Workaround: Modify `analyzeAudio` to take `AudioBuffer`?
+             // Let's check `analyzeAudio` signature. 
+             // Assuming it takes ArrayBuffer from existing code: `const audioData = await analyzeAudio(arrayBuffer.slice(0), fallbackBpm)`
+             
+             // CRITICAL: We need valid analysis for 60s.
+             // If we loop, the analysis should reflect the loop.
+             // If we can't re-encode, we might analyze the SHORT clip, then manually repeat beats?
+             // That's complex.
+             
+             // ALTERNATIVE: Use `wav-encoder` or similar? Don't have it.
+             // Quick Wav Encoder (Canonical simple RIFF header)
+             
+             // Let's implement a simple WAV encoder to turn our AudioBuffer back into ArrayBuffer
+             processedBuffer = audioBufferToWav(newAudioBuffer)
+             console.log("✅ Audio Processed (Looped/Trimmed) to 60s")
+          }
+      } catch (e) {
+         console.warn("⚠️ Audio Processing Warning:", e)
+         // Fallback to original
+      }
+
       // Map difficulty to BPM for fallback beat detection
       const difficultyBpmMap = {
         'EASY': 110,
@@ -331,7 +414,8 @@ function GamePage() {
       
       // Decode copy for analysis with fallback BPM
       console.log('🔍 Analyzing audio for beats...')
-      const audioData = await analyzeAudio(arrayBuffer.slice(0), fallbackBpm) 
+      // USE PROCESSED BUFFER
+      const audioData = await analyzeAudio(processedBuffer.slice(0), fallbackBpm) 
       console.log('✅ Audio analyzed:', {
         duration: audioData.metadata.duration,
         bpm: audioData.metadata.bpm,
@@ -346,7 +430,7 @@ function GamePage() {
       })
       
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
-      const playbackBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0)) // Decode fresh copy
+      const playbackBuffer = await ctx.decodeAudioData(processedBuffer.slice(0)) // Decode fresh copy of PROCESSED
       ctx.close()
       
       setLevelData(generatedLevel)
@@ -361,6 +445,62 @@ function GamePage() {
       setLoading(false) // Make sure to clear loading on error
       throw error // Re-throw so caller knows it failed
     }
+  }
+
+  // HELPER: Simple WAV Encoder
+  const audioBufferToWav = (buffer: AudioBuffer): ArrayBuffer => {
+      const numChannels = buffer.numberOfChannels
+      const sampleRate = buffer.sampleRate
+      const format = 1 // PCM
+      const bitDepth = 16
+      
+      let buffers: Float32Array[] = []
+      for (let i = 0; i < numChannels; i++) {
+          buffers.push(buffer.getChannelData(i))
+      }
+      
+      // Interleave
+      const length = buffers[0].length * numChannels * 2 + 44
+      const result = new ArrayBuffer(length)
+      const view = new DataView(result)
+      
+      // Writes string to view
+      const writeString = (view: DataView, offset: number, string: string) => {
+          for (let i = 0; i < string.length; i++) {
+              view.setUint8(offset + i, string.charCodeAt(i))
+          }
+      }
+      
+      // RIFF chunk descriptor
+      writeString(view, 0, 'RIFF')
+      view.setUint32(4, 36 + buffers[0].length * numChannels * 2, true)
+      writeString(view, 8, 'WAVE')
+      
+      // fmt sub-chunk
+      writeString(view, 12, 'fmt ')
+      view.setUint32(16, 16, true)
+      view.setUint16(20, format, true)
+      view.setUint16(22, numChannels, true)
+      view.setUint32(24, sampleRate, true)
+      view.setUint32(28, sampleRate * numChannels * 2, true)
+      view.setUint16(32, numChannels * 2, true)
+      view.setUint16(34, bitDepth, true)
+      
+      // data sub-chunk
+      writeString(view, 36, 'data')
+      view.setUint32(40, buffers[0].length * numChannels * 2, true)
+      
+      // Write PCM data
+      let offset = 44
+      for (let i = 0; i < buffers[0].length; i++) {
+          for (let channel = 0; channel < numChannels; channel++) {
+              const s = Math.max(-1, Math.min(1, buffers[channel][i]))
+              view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true)
+              offset += 2
+          }
+      }
+      
+      return result
   }
 
   const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {

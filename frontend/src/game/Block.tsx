@@ -160,12 +160,14 @@ export function Block({
               
               <Text
                 position={[0, 0, 0.11]} 
-                fontSize={0.6}
+                fontSize={0.8} // Increased from 0.6
                 color="white"
                 anchorX="center"
                 anchorY="middle"
                 maxWidth={7.5}
                 textAlign="center"
+                outlineWidth={0.05} // Added clear outline
+                outlineColor="black"
                 // font={FONT_URL} // disabling to prevent 404 block
               >
                   {text}
@@ -185,8 +187,8 @@ export function Block({
        <group ref={groupRef} position={position} userData={{ isBlock: false, id, isCorrect: true }} visible={!invisible}> 
            {/* Floating Text (Static relative to block, pulsing) */}
             <group ref={textRef}>
-                <Text position={posA} fontSize={1.0} color="#00ffff" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black" renderOrder={10} material-toneMapped={false}>{labelA}</Text>
-                <Text position={posB} fontSize={1.0} color="#ff00ff" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black" renderOrder={10} material-toneMapped={false}>{labelB}</Text>
+                <Text position={posA} fontSize={1.2} color="#00ffff" anchorX="center" anchorY="middle" outlineWidth={0.1} outlineColor="black" renderOrder={10} material-toneMapped={false}>{labelA}</Text>
+                <Text position={posB} fontSize={1.2} color="#ff00ff" anchorX="center" anchorY="middle" outlineWidth={0.1} outlineColor="black" renderOrder={10} material-toneMapped={false}>{labelB}</Text>
             </group>
 
            {/* The Block (Spins) */}
@@ -213,6 +215,9 @@ export function Block({
   // --- 3. PAIR VARIATION ---
   // Cube with Text on ALL SIDES + SPIN
   if (type === 'true_false_pair') {
+      const textSize = 0.9 // Increased from 0.6
+      const outline = 0.08
+      
       return (
         <group>
           <group 
@@ -234,17 +239,17 @@ export function Block({
                 </RoundedBox>
 
                 {/* Front */}
-                <Text position={[0, 0, 0.75]} renderOrder={10} material-toneMapped={false} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black">{text}</Text>
+                <Text position={[0, 0, 0.75]} renderOrder={10} material-toneMapped={false} fontSize={textSize} color="white" anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
                 {/* Back */}
-                <Text position={[0, 0, -0.75]} renderOrder={10} material-toneMapped={false} rotation={[0, Math.PI, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black">{text}</Text>
+                <Text position={[0, 0, -0.75]} renderOrder={10} material-toneMapped={false} rotation={[0, Math.PI, 0]} fontSize={textSize} color="white" anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
                 {/* Top */}
-                <Text position={[0, 0.75, 0]} renderOrder={10} material-toneMapped={false} rotation={[-Math.PI/2, 0, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black">{text}</Text>
+                <Text position={[0, 0.75, 0]} renderOrder={10} material-toneMapped={false} rotation={[-Math.PI/2, 0, 0]} fontSize={textSize} color="white" anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
                 {/* Bottom */}
-                <Text position={[0, -0.75, 0]} renderOrder={10} material-toneMapped={false} rotation={[Math.PI/2, 0, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black">{text}</Text>
+                <Text position={[0, -0.75, 0]} renderOrder={10} material-toneMapped={false} rotation={[Math.PI/2, 0, 0]} fontSize={textSize} color="white" anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
                 {/* Left */}
-                <Text position={[-0.75, 0, 0]} renderOrder={10} material-toneMapped={false} rotation={[0, -Math.PI/2, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black">{text}</Text>
+                <Text position={[-0.75, 0, 0]} renderOrder={10} material-toneMapped={false} rotation={[0, -Math.PI/2, 0]} fontSize={textSize} color="white" anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
             {/* Right */}
-            <Text position={[0.75, 0, 0]} renderOrder={10} material-toneMapped={false} rotation={[0, Math.PI/2, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black">{text}</Text>
+            <Text position={[0.75, 0, 0]} renderOrder={10} material-toneMapped={false} rotation={[0, Math.PI/2, 0]} fontSize={textSize} color="white" anchorX="center" anchorY="middle" outlineWidth={outline} outlineColor="black">{text}</Text>
         </group>
 
         {/* Debug Hitbox for Pair (Rotated with group) */}
@@ -284,11 +289,11 @@ export function Block({
               position={[0, 0, (size[2]/2) + 0.03]} 
               renderOrder={10}
               material-toneMapped={false}
-              fontSize={0.6} // Reduced from 0.9 to match style better (was "too big")
+              fontSize={1.0} // Increased from 0.6
               color="white"
               anchorX="center"
               anchorY="middle"
-              outlineWidth={0.2}
+              outlineWidth={0.08}
               outlineColor="black"
           >
               {text}

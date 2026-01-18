@@ -57,6 +57,10 @@ export interface GameState {
   // Settings
   webcamVisible: boolean
   setWebcamVisible: (visible: boolean) => void
+
+  // Restart Logic
+  restartTrigger: number
+  triggerRestart: () => void
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -137,5 +141,17 @@ export const useGameStore = create<GameState>((set, get) => ({
   setWebcamVisible: (visible) => {
       localStorage.setItem('saber_webcamVisible', String(visible))
       set({ webcamVisible: visible })
-  }
+  },
+
+  // Restart Logic
+  restartTrigger: 0,
+  triggerRestart: () => set((state) => ({ 
+      restartTrigger: state.restartTrigger + 1,
+      score: 0,
+      combo: 0,
+      isPlaying: false,
+      isGameOver: false,
+      levelData: null, // Clear data to force reload
+      audioBuffer: null
+  }))
 }))

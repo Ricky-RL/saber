@@ -10,19 +10,22 @@ interface ExplosionProps {
 
 export function Explosion({ position, color, onComplete }: ExplosionProps) {
   const groupRef = useRef<THREE.Group>(null!)
+  
+  // EXAGGERATED: 40 Particles (was 15), Faster, Random Scale
   const particles = useMemo(() => {
-    return new Array(15).fill(0).map(() => ({
+    return new Array(40).fill(0).map(() => ({
       velocity: new THREE.Vector3(
-        (Math.random() - 0.5) * 10,
-        (Math.random() - 0.5) * 10,
-        (Math.random() - 0.5) * 10
+        (Math.random() - 0.5) * 15, // Increased from 10
+        (Math.random() - 0.5) * 15,
+        (Math.random() - 0.5) * 20  // More forward/backward spread
       ),
-      scale: Math.random() * 0.4 + 0.1,
-      rotation: [Math.random() * Math.PI, Math.random() * Math.PI, 0] as [number, number, number]
+      scale: Math.random() * 0.5 + 0.2, // Slightly larger
+      rotation: [Math.random() * Math.PI, Math.random() * Math.PI, 0] as [number, number, number],
+      rotSpeed: [(Math.random()-0.5)*10, (Math.random()-0.5)*10, (Math.random()-0.5)*10]
     }))
   }, [])
 
-  useFrame((state, delta) => {
+  useFrame((_state, delta) => {
     if (groupRef.current) {
       let activeCount = 0
       
@@ -32,13 +35,20 @@ export function Explosion({ position, color, onComplete }: ExplosionProps) {
         // Move
         child.position.addScaledVector(particle.velocity, delta)
         
+        // Rotate (New)
+        child.rotation.x += particle.rotSpeed[0] * delta
+        child.rotation.y += particle.rotSpeed[1] * delta
+        
         // Gravity
-        particle.velocity.y -= 15 * delta
+        particle.velocity.y -= 25 * delta // Increased gravity
         
-        // Shrink
-        child.scale.multiplyScalar(0.9)
-        
-        if (child.scale.x > 0.01) {
+        // Shrink (Slower decay for more impact?)
+        // child.scale.multiplyScalar(0.9) 
+        // Let's simple reduce scale manually to zero
+        const scaleDecay = 1.0 - (4.0 * delta) // Linear decay approx
+        child.scale.multiplyScalar(Math.max(0, scaleDecay))
+
+        if (child.scale.x > 0.05) {
             activeCount++
         }
       })
@@ -53,8 +63,16 @@ export function Explosion({ position, color, onComplete }: ExplosionProps) {
     <group ref={groupRef} position={position}>
       {particles.map((p, i) => (
         <mesh key={i} rotation={p.rotation} scale={p.scale}>
-            <boxGeometry args={[0.5, 0.5, 0.5]} />
-            <meshBasicMaterial color={color} transparent opacity={0.8} />
+            <boxGeometry args={[0.4, 0.4, 0.4]} />
+            {/* EXAGGERATED: Standard Material with Emissive Glow */}
+            <meshStandardMaterial 
+                color={color} 
+                emissive={color}
+                emissiveIntensity={4}
+                toneMapped={false}
+                transparent 
+                opacity={1} 
+            />
         </mesh>
       ))}
     </group>

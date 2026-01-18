@@ -95,28 +95,34 @@ export const PLACEHOLDER_QUESTIONS: QuestionData[] = [
   }
 ];
 
-// IMPORT CENTRALIZED CONFIG
-import { 
-  STREAM_SPAWN_OFFSET, 
-  MCQ_QUESTION_BUFFER
-} from '../GameConfig'
+
 
 export function generateLevel(audioData: AudioAnalysisData, passedQuestions: QuestionData[] = [], difficulty: Difficulty = 'EASY'): GameLevelData {
   
   // 1. Prepare Questions
   let questions = passedQuestions.length > 0 ? passedQuestions : PLACEHOLDER_QUESTIONS;
   
-  // Randomize Questions
-  // We triple the list to ensure we have enough for a long song
-  questions = [...questions, ...questions, ...questions]
-      .sort(() => Math.random() - 0.5)
-      .map(q => {
-          // FORCE T/F PAIR (User Request: Revert to Floating Pair)
-          if (q.type === 'TRUE_FALSE') {
-              return { ...q, type: 'TRUE_FALSE_PAIR' }
-          }
-          return q
-      });
+  // Randomize Questions (Deck Shuffle Strategy)
+  // Ensure we don't repeat questions until the entire pool is exhausted
+  const finalQueue: QuestionData[] = []
+  const TARGET_COUNT = 60 // Enough for a 3-4 minute song (approx 1 question every 3-4s)
+  
+  while (finalQueue.length < TARGET_COUNT) {
+      // Create a fresh deck
+      const deck = [...questions].sort(() => Math.random() - 0.5)
+      
+      // Add deck to queue
+      finalQueue.push(...deck)
+  }
+  
+  // Apply Types and Variations
+  const processedQueue: QuestionData[] = finalQueue.map(q => {
+      // FORCE T/F PAIR (User Request: Revert to Floating Pair)
+      if (q.type === 'TRUE_FALSE') {
+          return { ...q, type: 'TRUE_FALSE_PAIR' }
+      }
+      return q
+  })
 
   const levelData: GameLevelData = {
     metadata: {
@@ -125,7 +131,7 @@ export function generateLevel(audioData: AudioAnalysisData, passedQuestions: Que
     },
     timeline: [], // Kept for legacy compatibility, but will be empty
     beats: audioData.beats, // Pass beats for runtime director
-    questionsQueue: questions // Pass full queue
+    questionsQueue: processedQueue // Pass full queue
   };
 
   return levelData;

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import './UI.css'
 
 export function UI() {
-  const { score, combo, isPlaying, isGameOver, currentQuestionText, startGame } = useGameStore()
+  const { score, combo, isPlaying, isGameOver, startGame } = useGameStore()
   const feedback = useGameStore((state) => state.feedback) // CALL HOOK HERE
 
   return (
@@ -94,7 +94,7 @@ export function UI() {
             
             <div className="action-buttons">
                 <button 
-                    onClick={startGame}
+                    onClick={() => useGameStore.getState().triggerRestart()}
                     className="btn-primary"
                 >
                     PLAY AGAIN
@@ -105,6 +105,64 @@ export function UI() {
             </div>
         </div>
       )}
+      
+      {/* Game Timer (Bottom Left) */}
+      <GameTimer />
     </div>
   )
+}
+
+import { useEffect, useState } from 'react'
+function GameTimer() {
+    const { isPlaying, isPaused, audioContext, audioStartTime } = useGameStore()
+    const [timeStr, setTimeStr] = useState("0:00")
+    
+    useEffect(() => {
+        let frameId: number
+        
+        const update = () => {
+            if (isPlaying && !isPaused && audioContext) {
+                const now = audioContext.currentTime - audioStartTime
+                // Ensure non-negative
+                const safeTime = Math.max(0, now)
+                
+                const mins = Math.floor(safeTime / 60)
+                const secs = Math.floor(safeTime % 60)
+                
+                setTimeStr(`${mins}:${secs.toString().padStart(2, '0')}`)
+                frameId = requestAnimationFrame(update)
+            } else {
+                 // If paused/stopped, don't update loop but keep current display?
+                 // Or loop slowly to catch resume?
+                 // Better: Dependency on isPaused handles re-trigger.
+            }
+        }
+        
+        if (isPlaying && !isPaused) {
+            update()
+        }
+        
+        return () => cancelAnimationFrame(frameId)
+    }, [isPlaying, isPaused, audioContext, audioStartTime])
+    
+    if (!isPlaying) return null
+
+    return (
+        <div style={{
+            position: 'absolute',
+            bottom: '20px',
+            left: '20px',
+            fontFamily: "'Orbitron', sans-serif",
+            fontSize: '1.5rem',
+            color: '#00ffff',
+            textShadow: '0 0 10px #00ffff',
+            background: 'rgba(0,0,0,0.5)',
+            padding: '10px 20px',
+            borderRadius: '10px',
+            border: '1px solid #00ffff',
+            zIndex: 100
+        }}>
+            {timeStr}
+        </div>
+    )
 }
