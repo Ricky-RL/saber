@@ -1,11 +1,12 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from supabase_client import supabase
+from typing import Optional
 
 router = APIRouter(prefix="/game", tags=["game"])
 
 class GameResult(BaseModel):
-    document_id: str
+    document_id: Optional[str] = None
     player_id: str
     score: int
     accuracy: float

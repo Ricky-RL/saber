@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react'
 import { HandTracker } from './HandTracker'
 import { Link, useLocation } from 'react-router-dom'
@@ -7,14 +6,69 @@ import Scene from './Scene'
 import { UI } from './UI'
 import { analyzeAudio } from './audio/beatDetector'
 import { generateLevel, PLACEHOLDER_QUESTIONS } from './audio/levelGenerator'
+import { useAuth } from '../contexts/Auth'
+import { supabase } from '../supabaseClient'
 
 function GamePage() {
-  const { setHandPositions, setLevelData, setAudioBuffer } = useGameStore()
+  const { setHandPositions, setLevelData, setAudioBuffer, isGameOver, levelData, correctCount, maxCombo, score } = useGameStore()
+  const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
   
   const location = useLocation()
   const { mode } = location.state || {}
+
+  // Upload Stats on Game Over
+  useEffect(() => {
+    if (isGameOver && user && levelData) {
+        // Calculate Accuracy
+        // Total questions is the number of events in timeline (assuming 1 event = 1 question)
+        const totalQuestions = levelData.timeline.length
+        
+        // Prevent division by zero
+        // User Request: 0-1 range, 2 decimal points
+        const accuracy = totalQuestions > 0 
+            ? Number((correctCount / totalQuestions).toFixed(2))
+            : 0
+
+        // Determine Document ID
+        const documentId = (location.state as any)?.documentId
+
+        // Constrain payload
+        const payload: any = {
+            player_id: user.id,
+            score: score,
+            accuracy: accuracy, // Float (e.g., 85.5)
+            best_streak: maxCombo
+        }
+
+        if (documentId) {
+             payload.document_id = documentId
+        }
+
+        console.log("Uploading Game Stats:", payload)
+
+        // Using fetch to call the backend endpoint (Assuming backend is running on port 8000)
+        // Adjust URL as needed (e.g. from env var)
+        const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+        
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            fetch(`${API_URL}/game/results`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session?.access_token || ''}` // Optional if RLS depends on it, but endpoint might not enforce auth token check yet
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(res => {
+                if (res.ok) console.log("Stats uploaded successfully")
+                else console.error("Failed to upload stats", res.statusText)
+            })
+            .catch(err => console.error("Error uploading stats:", err))
+        })
+    }
+  }, [isGameOver, user, levelData]) // Runs when isGameOver becomes true
 
   const handleHandsDetected = (left: {x: number, y: number, angle: number} | null, right: {x: number, y: number, angle: number} | null) => {
       setHandPositions(left, right)

@@ -20,6 +20,9 @@ export interface GameState {
   
   currentQuestionText: string | null // Added for HTML UI
 
+  // Stats
+  correctCount: number
+
   setLevelData: (data: GameLevelData) => void
   setAudioBuffer: (buffer: AudioBuffer) => void
 
@@ -31,6 +34,7 @@ export interface GameState {
   
   togglePause: () => void
   setPaused: (paused: boolean) => void
+  incrementCorrectCount: () => void
 
   // Hand Tracking
   // x, y: normalized coordinates
@@ -60,6 +64,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   audioSource: null,
   audioStartTime: 0,
   currentQuestionText: null, // Initial State
+  correctCount: 0,
 
   setLevelData: (data) => set({ levelData: data }),
   setAudioBuffer: (buffer) => set({ audioBuffer: buffer }),
@@ -71,6 +76,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setPaused: (paused) => set({ isPaused: paused }),
   togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
+  incrementCorrectCount: () => set((state) => ({ correctCount: state.correctCount + 1 })),
 
   // Hand Tracking State
   leftHandPos: { x: 0, y: 0, angle: 0 } as { x: number, y: number, angle: number } | null,
@@ -98,6 +104,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           score: 0, 
           combo: 0, 
           maxCombo: 0, 
+          correctCount: 0,
           isPlaying: true, 
           isGameOver: false,
         }

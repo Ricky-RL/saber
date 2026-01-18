@@ -392,7 +392,7 @@ export default function Profile() {
                             <Trash2 className="w-4 h-4" />
                           </motion.button>
                           
-                          <Link to="/game" state={{ mode: 'auto' }}>
+                          <Link to="/game" state={{ mode: 'auto', documentId: doc.id }}>
                             <motion.button
                               data-testid={`button-play-${doc.id}`}
                               className="p-2 rounded-lg bg-neon-magenta/10 text-neon-magenta hover:bg-neon-magenta/20 transition-colors"

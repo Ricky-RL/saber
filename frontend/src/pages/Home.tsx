@@ -282,7 +282,7 @@ export default function Home() {
                           Review
                         </motion.button>
                       </Link> */}
-                      <Link to="/game" state={{ mode: 'auto' }}>
+                      <Link to="/game" state={{ mode: 'auto', documentId: doc.id }}>
                         <motion.button
                           data-testid={`button-play-${doc.id}`}
                           className="p-2 rounded-lg bg-neon-magenta/10 text-neon-magenta hover:bg-neon-magenta/20 transition-colors"

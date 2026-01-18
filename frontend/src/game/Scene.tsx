@@ -28,7 +28,8 @@ function GameLoop() {
     endGame,
     setScore,
     setCombo, 
-    setAudioContext
+    setAudioContext,
+    incrementCorrectCount
   } = useGameStore()
 
   const [blocks, setBlocks] = useState<any[]>([])
@@ -433,6 +434,7 @@ function GameLoop() {
       if (isCorrect) {
           setScore(s => s + 100)
           setCombo(c => c + 1)
+          incrementCorrectCount()
       } else {
           setCombo(() => 0)
       }
