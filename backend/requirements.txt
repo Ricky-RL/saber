@@ -5,6 +5,8 @@ python-dotenv
 requests
 python-multipart
 pydub
+audioop-lts
 google-auth
 google-auth-oauthlib
 google-auth-httplib2
+elevenlabs
