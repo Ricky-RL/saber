@@ -148,8 +148,8 @@ export function Block({
        <group ref={groupRef} position={position} userData={{ isBlock: false, id, isCorrect: true }} visible={!invisible}> 
            {/* Floating Text (Static relative to block, pulsing) */}
             <group ref={textRef}>
-                <Text position={posA} fontSize={1.0} color="#00ffff" anchorX="center" anchorY="middle" outlineWidth={0.05} outlineColor="black">{labelA}</Text>
-                <Text position={posB} fontSize={1.0} color="#ff00ff" anchorX="center" anchorY="middle" outlineWidth={0.05} outlineColor="black">{labelB}</Text>
+                <Text position={posA} fontSize={1.0} color="#00ffff" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black" renderOrder={10} material-toneMapped={false}>{labelA}</Text>
+                <Text position={posB} fontSize={1.0} color="#ff00ff" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black" renderOrder={10} material-toneMapped={false}>{labelB}</Text>
             </group>
 
            {/* The Block (Spins) */}
@@ -196,19 +196,18 @@ export function Block({
                     />
                 </RoundedBox>
 
-                {/* Text on ALL FACES */}
                 {/* Front */}
-                <Text position={[0, 0, 0.66]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.08} outlineColor="black">{text}</Text>
+                <Text position={[0, 0, 0.75]} renderOrder={10} material-toneMapped={false} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black">{text}</Text>
                 {/* Back */}
-                <Text position={[0, 0, -0.66]} rotation={[0, Math.PI, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.08} outlineColor="black">{text}</Text>
+                <Text position={[0, 0, -0.75]} renderOrder={10} material-toneMapped={false} rotation={[0, Math.PI, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black">{text}</Text>
                 {/* Top */}
-                <Text position={[0, 0.66, 0]} rotation={[-Math.PI/2, 0, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.08} outlineColor="black">{text}</Text>
+                <Text position={[0, 0.75, 0]} renderOrder={10} material-toneMapped={false} rotation={[-Math.PI/2, 0, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black">{text}</Text>
                 {/* Bottom */}
-                <Text position={[0, -0.66, 0]} rotation={[Math.PI/2, 0, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.08} outlineColor="black">{text}</Text>
+                <Text position={[0, -0.75, 0]} renderOrder={10} material-toneMapped={false} rotation={[Math.PI/2, 0, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black">{text}</Text>
                 {/* Left */}
-                <Text position={[-0.66, 0, 0]} rotation={[0, -Math.PI/2, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.08} outlineColor="black">{text}</Text>
+                <Text position={[-0.75, 0, 0]} renderOrder={10} material-toneMapped={false} rotation={[0, -Math.PI/2, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black">{text}</Text>
             {/* Right */}
-            <Text position={[0.66, 0, 0]} rotation={[0, Math.PI/2, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.08} outlineColor="black">{text}</Text>
+            <Text position={[0.75, 0, 0]} renderOrder={10} material-toneMapped={false} rotation={[0, Math.PI/2, 0]} fontSize={0.6} color="white" anchorX="center" anchorY="middle" outlineWidth={0.2} outlineColor="black">{text}</Text>
         </group>
 
         {/* Debug Hitbox for Pair (Rotated with group) */}
@@ -245,12 +244,14 @@ export function Block({
 
         {!invisible && (
           <Text
-              position={[0, 0, (size[2]/2) + 0.01]} 
+              position={[0, 0, (size[2]/2) + 0.03]} 
+              renderOrder={10}
+              material-toneMapped={false}
               fontSize={0.6} // Reduced from 0.9 to match style better (was "too big")
               color="white"
               anchorX="center"
               anchorY="middle"
-              outlineWidth={0.08}
+              outlineWidth={0.2}
               outlineColor="black"
           >
               {text}

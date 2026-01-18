@@ -6,7 +6,7 @@ import * as THREE from 'three'
 import { Block } from './Block'
 
 // TOGGLE THIS TO SEE HITBOXES
-const DEBUG_SHOW_HITBOXES = false 
+const DEBUG_SHOW_HITBOXES = false
 
 import { SaberController } from './SaberController'
 import { useGameStore } from './GameManager'
@@ -187,14 +187,8 @@ function GameLoop() {
                       ]
                       const saberVel = saber.userData.velocity as THREE.Vector3
                       
-                      // 1. ANGLE CHECK (Idle Prevention) - User Request
-                      // If saber is pointing roughly UP (Vertical), it's idle.
-                      // We check the direction of the local Y axis in world space.
-                      const tipDir = new THREE.Vector3(0, 1, 0).transformDirection(saber.matrixWorld).normalize()
-                      
-                      // Dot product with World UP (0,1,0) is simply tipDir.y
-                      // Threshold: 0.85 (~30 degrees from vertical). If > 0.85, it's too vertical -> IDLE.
-                      if (Math.abs(tipDir.y) > 0.85) return
+                      // Filter low velocity (must swing) - DISABLED per user request for "Static Hit"
+                      // if (saberVel.length() < 0.5) return 
 
                       let isHit = false
                       for (const pt of hitPoints) {
@@ -202,7 +196,6 @@ function GameLoop() {
                           const dx = Math.abs(worldPt.x - blockPos.x)
                           const dy = Math.abs(worldPt.y - blockPos.y)
 
-                          // User manually tuned these values: size/2 + 0.4
                           const hitThresholdX = obj.userData.size ? (obj.userData.size[0] / 2) + 0.4 : 0.8
                           const hitThresholdY = obj.userData.size ? (obj.userData.size[1] / 2) + 0.4 : 0.8
 
