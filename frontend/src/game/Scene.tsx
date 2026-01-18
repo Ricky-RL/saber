@@ -826,7 +826,7 @@ function GameLoop() {
       </mesh>
 
       {/* Avatar in bottom left corner */}
-      {/* <Html
+      <Html
         position={[-3, 0.5, 3]}
         transform
         occlude={false}
@@ -837,7 +837,7 @@ function GameLoop() {
         }}
       >
         <Avatar ref={avatarRef} />
-      </Html> */}
+      </Html>
     </>
   )
 }
