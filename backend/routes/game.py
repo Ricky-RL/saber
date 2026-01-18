@@ -45,3 +45,18 @@ def get_user_info(user_id: str):
     except Exception as e:
         print(f"Error fetching user info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/history/{user_id}")
+def get_user_history(user_id: str):
+    try:
+        # Fetch statistics for the user
+        response = supabase.table("user_statistics")\
+            .select("*, documents(name)")\
+            .eq("user_id", user_id)\
+            .order("created_at", desc=True)\
+            .execute()
+            
+        return response.data
+    except Exception as e:
+        print(f"Error fetching user history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

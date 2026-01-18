@@ -23,13 +23,24 @@ import {
   Eye
 } from 'lucide-react';
 
-const quizHistory = [
-  { id: 1, type: 'game', doc: 'Biology Chapter 5', score: 2450, accuracy: 88, date: '2 hours ago', streak: 12 },
-  { id: 2, type: 'quiz', doc: 'Physics Formulas', score: 16, accuracy: 89, date: '1 day ago', total: 18 },
-  { id: 3, type: 'game', doc: 'World History - WWI', score: 1890, accuracy: 75, date: '2 days ago', streak: 8 },
-  { id: 4, type: 'quiz', doc: 'Chemistry Review', score: 14, accuracy: 93, date: '3 days ago', total: 15 },
-  { id: 5, type: 'game', doc: 'Calculus - Derivatives', score: 3200, accuracy: 96, date: '4 days ago', streak: 18 },
-];
+// Helper for relative time
+function timeAgo(dateString: string) {
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  let interval = seconds / 31536000;
+  if (interval > 1) return Math.floor(interval) + " years ago";
+  interval = seconds / 2592000;
+  if (interval > 1) return Math.floor(interval) + " months ago";
+  interval = seconds / 86400;
+  if (interval > 1) return Math.floor(interval) + " days ago";
+  interval = seconds / 3600;
+  if (interval > 1) return Math.floor(interval) + " hours ago";
+  interval = seconds / 60;
+  if (interval > 1) return Math.floor(interval) + " minutes ago";
+  return Math.floor(seconds) + " seconds ago";
+}
 
 interface Document {
   id: string;
@@ -41,6 +52,18 @@ interface Document {
   file_type: string; // Add file_type to interface
 }
 
+interface HistoryEntry {
+  id: string;
+  document_id: string;
+  score: number;
+  accuracy: number;
+  best_streak: number;
+  created_at: string;
+  documents: {
+    name: string;
+  }
+}
+
 export default function Profile() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -49,12 +72,14 @@ export default function Profile() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
 
   useEffect(() => {
     if (user) {
       fetchDocuments();
+      fetchHistory();
     }
   }, [user]);
 
@@ -82,6 +107,26 @@ export default function Profile() {
       }
     } catch (error) {
       console.error('Error fetching documents:', error);
+    }
+  };
+
+  const fetchHistory = async () => {
+    try {
+      console.log('Fetching history for user:', user?.id);
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/game/history/${user?.id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch history');
+      }
+      
+      const data = await response.json();
+      console.log('Fetched history data:', data);
+
+      if (data) {
+        setHistory(data);
+      }
+    } catch (error) {
+      console.error('Error fetching history:', error);
     }
   };
 
@@ -115,6 +160,13 @@ export default function Profile() {
     await signOut();
     navigate('/');
   };
+
+  // Calculate stats from history
+  const bestScore = history.reduce((max, curr) => Math.max(max, curr.score), 0);
+  const avgAccuracy = history.length > 0
+    ? Math.round(history.reduce((acc, curr) => acc + (curr.accuracy * 100), 0) / history.length)
+    : 0;
+  const totalSessions = history.length;
 
   const filteredDocs = documents.filter(doc => 
     doc.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -370,23 +422,28 @@ export default function Profile() {
               <div className="grid grid-cols-3 gap-4 mb-8">
                 <div className="glass-card rounded-xl p-5 text-center">
                   <Trophy className="w-8 h-8 text-neon-cyan mx-auto mb-2" />
-                  <p className="font-display text-2xl font-bold text-neon-cyan">3,200</p>
+                  <p className="font-display text-2xl font-bold text-neon-cyan">{bestScore.toLocaleString()}</p>
                   <p className="text-sm text-muted-foreground">Best Score</p>
                 </div>
                 <div className="glass-card rounded-xl p-5 text-center">
                   <Target className="w-8 h-8 text-neon-pink mx-auto mb-2" />
-                  <p className="font-display text-2xl font-bold text-neon-pink">87%</p>
+                  <p className="font-display text-2xl font-bold text-neon-pink">{avgAccuracy}%</p>
                   <p className="text-sm text-muted-foreground">Avg Accuracy</p>
                 </div>
                 <div className="glass-card rounded-xl p-5 text-center">
                   <Clock className="w-8 h-8 text-neon-purple mx-auto mb-2" />
-                  <p className="font-display text-2xl font-bold text-neon-purple">24</p>
+                  <p className="font-display text-2xl font-bold text-neon-purple">{totalSessions}</p>
                   <p className="text-sm text-muted-foreground">Total Sessions</p>
                 </div>
               </div>
 
               <div className="space-y-3">
-                {quizHistory.map((entry, index) => (
+                {history.length === 0 && (
+                  <div className="text-center py-10 text-muted-foreground">
+                    <p>No game history found. Play a game to see your stats!</p>
+                  </div>
+                )}
+                {history.map((entry, index) => (
                   <motion.div
                     key={entry.id}
                     data-testid={`history-row-${entry.id}`}
@@ -397,30 +454,22 @@ export default function Profile() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                          entry.type === 'game' 
-                            ? 'bg-gradient-to-br from-neon-magenta/30 to-neon-pink/30' 
-                            : 'bg-gradient-to-br from-neon-cyan/30 to-neon-blue/30'
-                        }`}>
-                          {entry.type === 'game' ? (
-                            <Zap className="w-6 h-6 text-neon-magenta" />
-                          ) : (
-                            <FileText className="w-6 h-6 text-neon-cyan" />
-                          )}
+                        <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-gradient-to-br from-neon-magenta/30 to-neon-pink/30">
+                          <Zap className="w-6 h-6 text-neon-magenta" />
                         </div>
                         
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className={`text-xs font-display px-2 py-0.5 rounded ${
-                              entry.type === 'game' 
-                                ? 'bg-neon-magenta/20 text-neon-magenta' 
-                                : 'bg-neon-cyan/20 text-neon-cyan'
-                            }`}>
-                              {entry.type === 'game' ? 'STUDYSABER' : 'QUIZ'}
+                            <span className="text-xs font-display px-2 py-0.5 rounded bg-neon-magenta/20 text-neon-magenta">
+                              STUDYSABER
                             </span>
                           </div>
-                          <h3 className="font-ui font-semibold text-foreground mt-1">{entry.doc}</h3>
-                          <p className="text-sm text-muted-foreground">{entry.date}</p>
+                          <h3 className="font-ui font-semibold text-foreground mt-1">
+                            {entry.documents?.name || 'Unknown Document'}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            {timeAgo(entry.created_at)}
+                          </p>
                         </div>
                       </div>
 
@@ -428,19 +477,17 @@ export default function Profile() {
                         <div className="text-right">
                           <p className="text-sm text-muted-foreground">Score</p>
                           <p className="font-display text-xl text-neon-pink">
-                            {entry.type === 'game' ? entry.score.toLocaleString() : `${entry.score}/${entry.total}`}
+                            {entry.score.toLocaleString()}
                           </p>
                         </div>
                         <div className="text-right">
                           <p className="text-sm text-muted-foreground">Accuracy</p>
-                          <p className="font-display text-xl text-neon-cyan">{entry.accuracy}%</p>
+                          <p className="font-display text-xl text-neon-cyan">{Math.round(entry.accuracy * 100)}%</p>
                         </div>
-                        {entry.type === 'game' && (
-                          <div className="text-right">
+                        <div className="text-right">
                             <p className="text-sm text-muted-foreground">Best Streak</p>
-                            <p className="font-display text-xl text-neon-purple">🔥 {entry.streak}</p>
-                          </div>
-                        )}
+                            <p className="font-display text-xl text-neon-purple">🔥 {entry.best_streak}</p>
+                        </div>
                       </div>
                     </div>
                   </motion.div>
