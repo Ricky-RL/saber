@@ -48,19 +48,20 @@ export interface GameState {
   
   // Feedback
   feedback: { type: 'CORRECT' | 'WRONG' | 'MISSED', text: string, correctText?: string } | null
-  setFeedback: (fb: { type: 'CORRECT' | 'WRONG' | 'MISSED', text: string, correctText?: string } | null) => void
+  setFeedback: (feedback: { type: 'CORRECT' | 'WRONG' | 'MISSED', text: string, correctText?: string } | null) => void
 
-  // Store Items
   equippedItems: any
   setEquippedItems: (items: any) => void
 
-  // Settings
   webcamVisible: boolean
   setWebcamVisible: (visible: boolean) => void
-
-  // Restart Logic
+  
   restartTrigger: number
   triggerRestart: () => void
+
+  // Background
+  synthBackgroundEnabled: boolean
+  toggleSynthBackground: () => void
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -68,8 +69,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   combo: 0,
   maxCombo: 0,
   isPlaying: false,
-  isGameOver: false,
   isPaused: false,
+  isGameOver: false,
   levelData: null,
   audioBuffer: null,
   audioContext: null,
@@ -145,13 +146,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   // Restart Logic
   restartTrigger: 0,
-  triggerRestart: () => set((state) => ({ 
-      restartTrigger: state.restartTrigger + 1,
-      score: 0,
-      combo: 0,
-      isPlaying: false,
-      isGameOver: false,
-      levelData: null, // Clear data to force reload
-      audioBuffer: null
-  }))
+  triggerRestart: () => set((state) => ({ restartTrigger: state.restartTrigger + 1, isGameOver: false, isPlaying: false })),
+
+  synthBackgroundEnabled: false,
+  toggleSynthBackground: () => set((state) => ({ synthBackgroundEnabled: !state.synthBackgroundEnabled })),
 }))

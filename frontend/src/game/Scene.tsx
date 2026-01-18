@@ -16,6 +16,7 @@ import {
     COLUMN_POSITIONS,
     DYNAMIC_SPAWN_SPACER
 } from './GameConfig'
+import { useTexture } from '@react-three/drei' // Import useTexture
 
 // TOGGLE THIS TO SEE HITBOXES
 const DEBUG_SHOW_HITBOXES = false
@@ -44,7 +45,8 @@ function GameLoop() {
     setCombo, 
     setAudioContext,
     incrementCorrectCount,
-    equippedItems // Need equipped items to update lane colors
+    equippedItems, // Need equipped items to update lane colors
+    synthBackgroundEnabled // Need this for background
   } = useGameStore()
 
   const [blocks, setBlocks] = useState<any[]>([])
@@ -887,6 +889,9 @@ function GameLoop() {
           <planeGeometry args={[20, 300]} /> {/* Increased length */}
           <meshStandardMaterial color="#050505" roughness={1} metalness={0} /> 
       </mesh>
+    
+      {/* Synthwave Background Image */}
+      {synthBackgroundEnabled && <SynthBackgroundPlane />}
 
       {/* Avatar in bottom left corner */}
       <Html
@@ -940,6 +945,16 @@ function PulsatingLine({ position, color }: { position: [number, number, number]
          <meshStandardMaterial ref={matRef} color={color} emissive={color} toneMapped={false} />
       </mesh>
     )
+}
+
+function SynthBackgroundPlane() {
+  const texture = useTexture('synthbackground.webp')
+  return (
+    <mesh position={[0, 10, -50]} scale={[130, 70, 1]}>
+      <planeGeometry />
+      <meshBasicMaterial map={texture} depthWrite={false} />
+    </mesh>
+  )
 }
 
 export default function Scene() {

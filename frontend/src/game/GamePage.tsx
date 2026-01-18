@@ -10,7 +10,7 @@ import { useAuth } from '../contexts/Auth'
 import { supabase } from '../supabaseClient'
 
 function GamePage() {
-  const { setHandPositions, setLevelData, setAudioBuffer, isGameOver, levelData, correctCount, maxCombo, score, setEquippedItems, webcamVisible, setWebcamVisible, restartTrigger } = useGameStore()
+  const { setHandPositions, setLevelData, setAudioBuffer, isGameOver, levelData, correctCount, maxCombo, score, setEquippedItems, webcamVisible, setWebcamVisible, restartTrigger, synthBackgroundEnabled, toggleSynthBackground } = useGameStore()
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
@@ -722,13 +722,51 @@ function GamePage() {
 
       {/* HandTracker - Always Visible (PiP) so user can set up */}
       
-      {/* Toggle Button for Webcam - Only visible on Upload Screen or if desired in game too? 
-          User said: "while the user is uploading the document there should be a slider that the user can click to then turn off the webcam"
-      */}
-      {!hasGenerated && (
-          <div style={{
+      {/* Toggle Button for Webcam */}
+      <div style={{
+          position: 'absolute',
+          top: 270, // Below the webcam box (20 top + 240 height + 10 gap)
+          right: 20,
+          zIndex: 100,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          background: 'rgba(0,0,0,0.5)',
+          padding: '8px 12px',
+          borderRadius: '20px',
+          border: '1px solid #333'
+      }}>
+          <span style={{ fontSize: '0.8rem', color: '#aaa' }}>Webcam Overlay</span>
+          <div 
+            onClick={() => setWebcamVisible(!webcamVisible)}
+            style={{
+                width: '40px',
+                height: '20px',
+                background: webcamVisible ? '#00ffff' : '#333',
+                borderRadius: '10px',
+                position: 'relative',
+                cursor: 'pointer',
+                transition: 'background 0.3s'
+            }}
+          >
+              <div style={{
+                  width: '16px',
+                  height: '16px',
+                  background: 'white',
+                  borderRadius: '50%',
+                  position: 'absolute',
+                  top: '2px',
+                  left: webcamVisible ? '22px' : '2px',
+                  transition: 'left 0.3s',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+              }} />
+          </div>
+      </div>
+
+      {/* SYNTH BACKGROUND TOGGLE */}
+        <div style={{
               position: 'absolute',
-              top: 270, // Below the webcam box (20 top + 240 height + 10 gap)
+              top: 320, 
               right: 20,
               zIndex: 100,
               display: 'flex',
@@ -739,13 +777,13 @@ function GamePage() {
               borderRadius: '20px',
               border: '1px solid #333'
           }}>
-              <span style={{ fontSize: '0.8rem', color: '#aaa' }}>Webcam Overlay</span>
-              <div 
-                onClick={() => setWebcamVisible(!webcamVisible)}
+            <span style={{ fontSize: '0.8rem', color: '#aaa' }}>Synth Background</span>
+            <div 
+                onClick={toggleSynthBackground}
                 style={{
                     width: '40px',
                     height: '20px',
-                    background: webcamVisible ? '#00ffff' : '#333',
+                    background: synthBackgroundEnabled ? '#ff00ff' : '#333',
                     borderRadius: '10px',
                     position: 'relative',
                     cursor: 'pointer',
@@ -759,13 +797,12 @@ function GamePage() {
                       borderRadius: '50%',
                       position: 'absolute',
                       top: '2px',
-                      left: webcamVisible ? '22px' : '2px',
+                      left: synthBackgroundEnabled ? '22px' : '2px',
                       transition: 'left 0.3s',
                       boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
                   }} />
               </div>
-          </div>
-      )}
+        </div>
 
       {webcamVisible && (
         <div style={{ 
