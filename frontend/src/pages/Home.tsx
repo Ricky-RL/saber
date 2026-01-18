@@ -1,8 +1,8 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/Auth';
-import { supabase } from '../supabaseClient'; // Added import for supabase
+import { supabase } from '../supabaseClient'; 
 import LoginModal from '../components/LoginModal';
 import { 
   Zap, 
@@ -47,23 +47,6 @@ const formatTimeAgo = (dateString: string) => {
   return Math.floor(seconds) + " seconds ago";
 };
 
-const studyCalendar = (() => {
-  // Generate 6 months of data
-  const months = [];
-  for (let m = 0; m < 6; m++) {
-    const days = [];
-    // 4 weeks * 7 days = 28 days per block for clean grid
-    for (let i = 0; i < 28; i++) {
-      const hasStudy = Math.random() > 0.4;
-      const intensity = hasStudy ? Math.floor(Math.random() * 4) + 1 : 0;
-      const gamesPlayed = hasStudy ? Math.floor(Math.random() * 10) + 1 : 0;
-      days.push({ intensity, gamesPlayed });
-    }
-    months.push(days);
-  }
-  return months;
-})();
-
 const getIntensityColor = (intensity: number) => {
   switch (intensity) {
     case 0: return 'bg-muted/30';
@@ -83,11 +66,19 @@ interface Document {
   created_at?: string;
 }
 
+interface ActivityStats {
+    daily_activity: Record<string, number>;
+    total_questions: number;
+    average_accuracy: number;
+    best_combo: number;
+}
+
 export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [recentDocs, setRecentDocs] = useState<Document[]>([]);
+  const [stats, setStats] = useState<ActivityStats | null>(null);
 
   useEffect(() => {
     const fetchRecentDocs = async () => {
@@ -127,6 +118,71 @@ export default function Home() {
 
     fetchRecentDocs();
   }, [user]);
+
+  // Fetch Activity Stats
+  useEffect(() => {
+    if (user) {
+        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/stats/activity/${user.id}`)
+            .then(res => res.json())
+            .then(data => setStats(data))
+            .catch(err => console.error("Error loading stats", err));
+    }
+  }, [user]);
+
+  const studyCalendar = useMemo(() => {
+     if (!stats) return []; 
+     
+     const blocks = [];
+     const today = new Date();
+     
+     const totalDays = 6 * 28;
+     const startDate = new Date(today);
+     startDate.setDate(today.getDate() - totalDays + 1);
+     
+     // Helper to format date key matching backend
+     const dateKey = (d: Date) => d.toISOString().split('T')[0];
+
+     let current = new Date(startDate);
+     
+     for (let m = 0; m < 6; m++) {
+        const days = [];
+        for (let i = 0; i < 28; i++) {
+            const k = dateKey(current);
+            // Ensure stats.daily_activity exists
+            const activity = stats.daily_activity || {};
+            const count = activity[k] || 0;
+            // Calculate intensity 0-4
+            let intensity = 0;
+            if (count > 0) intensity = 1;
+            if (count > 2) intensity = 2;
+            if (count > 5) intensity = 3;
+            if (count > 10) intensity = 4;
+            
+            days.push({ intensity, gamesPlayed: count, date: k });
+            
+            // Increment day
+            current.setDate(current.getDate() + 1);
+        }
+        blocks.push(days);
+     }
+     
+     return blocks;
+  }, [stats]);
+
+
+  // Placeholder data if no stats yet
+  const displayCalendar = stats ? studyCalendar : (() => {
+      // Fallback Dummy Data while loading or logged out
+      const months = [];
+      for (let m = 0; m < 6; m++) {
+        const days = [];
+        for (let i = 0; i < 28; i++) {
+            days.push({ intensity: 0, gamesPlayed: 0 });
+        }
+        months.push(days);
+      }
+      return months;
+  })();
 
   const handleProfileClick = async () => {
     // Fire-and-forget call to backend logging
@@ -383,7 +439,7 @@ export default function Home() {
             
             <div className="glass-card rounded-xl p-5">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-sm text-muted-foreground font-ui">Last 3 months</span>
+                <span className="text-sm text-muted-foreground font-ui">Last 6 months</span>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Less</span>
                   <div className="flex gap-1">
@@ -403,7 +459,7 @@ export default function Home() {
                 - Spacing: 'gap-4' between months, 'gap-[2px]' between cells.
               */}
               <div className="flex gap-4">
-                {studyCalendar.map((month, mIndex) => (
+                {displayCalendar.map((month, mIndex) => (
                   <div key={mIndex} className="grid grid-rows-7 grid-flow-col gap-[2px]">
                     {month.map((day, dIndex) => (
                       <motion.div
@@ -425,15 +481,15 @@ export default function Home() {
               <div className="mt-6 pt-4 border-t border-border">
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center">
-                    <p className="font-display text-xl font-bold text-neon-cyan">156</p>
+                    <p className="font-display text-xl font-bold text-neon-cyan">{stats ? stats.total_questions : 0}</p>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Questions</p>
                   </div>
                   <div className="text-center">
-                    <p className="font-display text-xl font-bold text-neon-pink">87%</p>
+                    <p className="font-display text-xl font-bold text-neon-pink">{stats ? stats.average_accuracy : 0}%</p>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Accuracy</p>
                   </div>
                   <div className="text-center">
-                    <p className="font-display text-xl font-bold text-neon-purple">x42</p>
+                    <p className="font-display text-xl font-bold text-neon-purple">x{stats ? stats.best_combo : 0}</p>
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Best Combo</p>
                   </div>
                 </div>
@@ -447,21 +503,20 @@ export default function Home() {
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Study Time Today</span>
-                  <span className="font-display text-neon-cyan">45 min</span>
+                  <span className="text-sm text-muted-foreground">Games Played</span>
+                  <span className="font-display text-neon-cyan">{stats ? Object.values(stats.daily_activity).reduce((a, b) => a + b, 0) : 0}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Best Streak</span>
-                  <span className="font-display text-neon-pink">🔥 14 days</span>
+                  <span className="font-display text-neon-pink">🔥 {stats ? stats.best_combo : 0}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Total Documents</span>
-                  <span className="font-display text-neon-purple">12</span>
+                  <span className="text-sm text-muted-foreground">Total Questions</span>
+                  <span className="font-display text-neon-purple">{stats ? stats.total_questions : 0}</span>
                 </div>
-                {/* Added Best Combo to Quick Stats as requested */}
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Best Combo</span>
-                  <span className="font-display text-neon-cyan">x42</span>
+                 <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">Avg Accuracy</span>
+                  <span className="font-display text-neon-cyan">{stats ? stats.average_accuracy : 0}%</span>
                 </div>
               </div>
             </div>
