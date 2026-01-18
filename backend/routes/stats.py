@@ -53,10 +53,10 @@ def get_leaderboard():
 @router.get("/activity/{user_id}")
 def get_user_activity(user_id: str):
     try:
-        # Calculate date range (last 6 months appx. 180 days to match frontend grid)
+        # Calculate date range (now 30 days)
         # Use UTC to match database storage
         end_date = datetime.now(timezone.utc)
-        start_date = end_date - timedelta(days=180) 
+        start_date = end_date - timedelta(days=30) 
         
         # Determine the earliest date we want to show (start of the month 3 months ago)
         # Or simpler: just get all stats for the user and filter in python or query.

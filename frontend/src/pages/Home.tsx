@@ -156,7 +156,8 @@ export default function Home() {
      const blocks = [];
      const today = new Date();
      
-     const totalDays = 6 * 28;
+     // 30 days total for 1 month block (was 6 * 28)
+     const totalDays = 30; // 30 days
      const startDate = new Date(today);
      startDate.setDate(today.getDate() - totalDays + 1);
      
@@ -165,27 +166,30 @@ export default function Home() {
 
      let current = new Date(startDate);
      
-     for (let m = 0; m < 6; m++) {
-        const days = [];
-        for (let i = 0; i < 28; i++) {
-            const k = dateKey(current);
-            // Ensure stats.daily_activity exists
-            const activity = stats.daily_activity || {};
-            const count = activity[k] || 0;
-            // Calculate intensity 0-4
-            let intensity = 0;
-            if (count > 0) intensity = 1;
-            if (count > 2) intensity = 2;
-            if (count > 5) intensity = 3;
-            if (count > 10) intensity = 4;
-            
-            days.push({ intensity, gamesPlayed: count, date: k });
-            
-            // Increment day
-            current.setDate(current.getDate() + 1);
-        }
-        blocks.push(days);
+     // Single loop for ~30 days, or we can structure it as 1 block of 30 days.
+     // Previous code structure: month blocks of 28 days (7x4). 
+     // We want to show "Last 30 days". 
+     // A grid of 7 rows x 5 cols = 35 cells. 30 days fits well.
+     
+     const days = [];
+     for (let i = 0; i < 30; i++) {
+        const k = dateKey(current);
+        // Ensure stats.daily_activity exists
+        const activity = stats.daily_activity || {};
+        const count = activity[k] || 0;
+        // Calculate intensity 0-4
+        let intensity = 0;
+        if (count > 0) intensity = 1;
+        if (count > 2) intensity = 2;
+        if (count > 5) intensity = 3;
+        if (count > 10) intensity = 4;
+        
+        days.push({ intensity, gamesPlayed: count, date: k });
+        
+        // Increment day
+        current.setDate(current.getDate() + 1);
      }
+     blocks.push(days); // Only 1 block now
      
      return blocks;
   }, [stats]);
@@ -195,13 +199,12 @@ export default function Home() {
   const displayCalendar = stats ? studyCalendar : (() => {
       // Fallback Dummy Data while loading or logged out
       const months = [];
-      for (let m = 0; m < 6; m++) {
-        const days = [];
-        for (let i = 0; i < 28; i++) {
-            days.push({ intensity: 0, gamesPlayed: 0 });
-        }
-        months.push(days);
+      // Only 1 block of 30 days
+      const days = [];
+      for (let i = 0; i < 30; i++) {
+          days.push({ intensity: 0, gamesPlayed: 0 });
       }
+      months.push(days);
       return months;
   })();
 
@@ -476,15 +479,15 @@ export default function Home() {
             
             <div className="glass-card rounded-xl p-5">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-sm text-muted-foreground font-ui">Last 6 months</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Less</span>
+                <span className="text-sm text-muted-foreground font-ui">Last 30 days</span>
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <span>Less</span>
                   <div className="flex gap-1">
                     {[0, 1, 2, 3, 4].map((i) => (
                       <div key={i} className={`w-2.5 h-2.5 rounded-[2px] ${getIntensityColor(i)}`} />
                     ))}
                   </div>
-                  <span className="text-xs text-muted-foreground">More</span>
+                  <span>More</span>
                 </div>
               </div>
               
@@ -495,18 +498,18 @@ export default function Home() {
                 - Cell Style: 'w-2.5 h-2.5' (size) 'rounded-[2px]' (shape).
                 - Spacing: 'gap-4' between months, 'gap-[2px]' between cells.
               */}
-              <div className="flex gap-4">
+              <div className="flex gap-4 w-full">
                 {displayCalendar.map((month, mIndex) => (
-                  <div key={mIndex} className="grid grid-rows-7 grid-flow-col gap-[2px]">
+                  <div key={mIndex} className="grid grid-cols-10 gap-3 w-full">
                     {month.map((day, dIndex) => (
                       <motion.div
                         key={`${mIndex}-${dIndex}`}
                         data-testid={`calendar-day-${mIndex}-${dIndex}`}
-                        className={`w-2.5 h-2.5 rounded-[2px] ${getIntensityColor(day.intensity)} transition-all cursor-crosshair`}
+                        className={`w-full aspect-square rounded-[4px] ${getIntensityColor(day.intensity)} transition-all cursor-crosshair`}
                         initial={{ opacity: 0, scale: 0 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: (mIndex * 30 + dIndex) * 0.005 }}
-                        whileHover={{ scale: 1.4, zIndex: 10, borderColor: 'white', borderWidth: 1 }}
+                        whileHover={{ scale: 1.1, zIndex: 10, borderColor: 'white', borderWidth: 1 }}
                         onMouseEnter={(e) => handleMouseEnter(mIndex, dIndex, day.gamesPlayed, e)}
                         onMouseLeave={handleMouseLeave}
                       />
@@ -523,7 +526,7 @@ export default function Home() {
                   </div>
                   <div className="text-center">
                     <p className="font-display text-xl font-bold text-neon-pink">{stats ? stats.average_accuracy : 0}%</p>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Accuracy</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Quiz Score</p>
                   </div>
                   <div className="text-center">
                     <p className="font-display text-xl font-bold text-neon-purple">x{stats ? stats.best_combo : 0}</p>
@@ -549,10 +552,10 @@ export default function Home() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Total Questions</span>
-                  <span className="font-display text-neon-purple">{stats ? stats.total_questions : 0}</span>
+                  <span className="font-display text-neon-purple">{stats ? Math.round(stats.total_questions / 4) : 0}</span>
                 </div>
                  <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Avg Accuracy</span>
+                  <span className="text-sm text-muted-foreground">Avg Quiz Score</span>
                   <span className="font-display text-neon-cyan">{stats ? stats.average_accuracy : 0}%</span>
                 </div>
               </div>

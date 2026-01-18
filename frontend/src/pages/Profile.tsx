@@ -7,23 +7,24 @@ import UploadModal from '../components/UploadModal';
 import PreviewModal from '../components/PreviewModal';
 import AvatarLipsyncView from '../components/AvatarLipsyncView';
 import { 
-  Zap, 
-  FileText, 
+  Plus, 
   Trash2, 
-  Edit3, 
   Play, 
+  Settings, 
+  LogOut, 
   ChevronLeft,
+  Upload,
+  Check,
+  X,
+  FileText,
+  Clock,
+  Eye,
+  Gift,
+  Phone,
   Search,
   Trophy,
   Target,
-  Check,
-  X,
-  Upload,
-  Clock,
-  LogOut,
-  Eye,
-  Gift,
-  Phone
+  Zap
 } from 'lucide-react';
 import { base } from 'framer-motion/client';
 
@@ -76,16 +77,20 @@ export default function Profile() {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  
+  // State for store items
+  const [storeItems, setStoreItems] = useState<any[]>([]);
+  const [userBalance, setUserBalance] = useState(0);
+  const [purchasedItems, setPurchasedItems] = useState<string[]>([]);
+  const [equippedItems, setEquippedItems] = useState<any>({});
+  
   const [documents, setDocuments] = useState<Document[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const [callingDoc, setCallingDoc] = useState<Document | null>(null);
   const [agentId, setAgentId] = useState<string | null>(null);
-  const [storeItems, setStoreItems] = useState<any[]>([]);
-  const [userBalance, setUserBalance] = useState(0);
-  const [purchasedItems, setPurchasedItems] = useState<string[]>([]);
-  const [equippedItems, setEquippedItems] = useState<any>({});
+
   const avatarContainerRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
@@ -227,11 +232,6 @@ export default function Profile() {
     }
   };
 
-  const startEdit = (id: string, name: string) => {
-    setEditingId(id);
-    setEditName(name);
-  };
-
   const saveEdit = () => {
     setEditingId(null);
     setEditName('');
@@ -278,7 +278,7 @@ export default function Profile() {
   // Calculate stats from history
   const bestScore = history.reduce((max, curr) => Math.max(max, curr.score), 0);
   const avgAccuracy = history.length > 0
-    ? Math.round(history.reduce((acc, curr) => acc + curr.accuracy, 0) / history.length)
+    ? Math.round(history.reduce((acc, curr) => acc + (curr.accuracy * 100), 0) / history.length)
     : 0;
   const totalSessions = history.length;
 
@@ -552,19 +552,22 @@ export default function Profile() {
                             <Phone className="w-4 h-4" />
                           </motion.button>
 
+                          {/* 
                           <motion.button
                             data-testid={`button-edit-${doc.id}`}
                             onClick={() => startEdit(doc.id, doc.name)}
                             className="p-2 rounded-lg text-muted-foreground hover:text-neon-cyan hover:bg-neon-cyan/10 transition-colors"
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
+                            title="Rename"
                           >
                             <Edit3 className="w-4 h-4" />
                           </motion.button>
-                          
+                          */}
+
                           <motion.button
-                            onClick={() => handleDelete(doc.id)}
                             data-testid={`button-delete-${doc.id}`}
+                            onClick={() => handleDelete(doc.id)}
                             className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
@@ -609,9 +612,9 @@ export default function Profile() {
                 <div className="glass-card rounded-xl p-5 text-center">
                   <Target className="w-8 h-8 text-neon-pink mx-auto mb-2" />
                   <p className="font-display text-2xl font-bold text-neon-pink">{avgAccuracy}%</p>
-                  <p className="text-sm text-muted-foreground">Avg Accuracy</p>
+                  <p className="text-sm text-muted-foreground">Quiz Score</p>
                 </div>
-                <div className="glass-card rounded-xl p-5 text-center">
+                <div className="bg-game-dark/50 p-4 rounded-lg border border-neon-blue/20">
                   <Clock className="w-8 h-8 text-neon-purple mx-auto mb-2" />
                   <p className="font-display text-2xl font-bold text-neon-purple">{totalSessions}</p>
                   <p className="text-sm text-muted-foreground">Total Sessions</p>
@@ -662,7 +665,7 @@ export default function Profile() {
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm text-muted-foreground">Accuracy</p>
+                          <p className="text-sm text-muted-foreground">Quiz Score</p>
                           <p className="font-display text-xl text-neon-cyan">{Math.round(entry.accuracy * 100)}%</p>
                         </div>
                         <div className="text-right">

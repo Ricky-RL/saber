@@ -16,7 +16,6 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }: Uploa
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [docName, setDocName] = useState('');
   const [docTopic, setDocTopic] = useState('');
 
   if (!isOpen) return null;
@@ -25,18 +24,19 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }: Uploa
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setSelectedFile(file);
-      // Auto-fill the name with filename (without extension)
-      const nameWithoutExt = file.name.split('.').slice(0, -1).join('.');
-      setDocName(nameWithoutExt);
       setError(null);
     }
   };
 
   const handleUpload = async () => {
-    if (!selectedFile || !user || !docName.trim()) return;
+    if (!selectedFile || !user) return;
 
     setIsUploading(true);
     setError(null);
+    
+    // Auto-fill the name with filename (without extension) if needed
+    const nameWithoutExt = selectedFile.name.split('.').slice(0, -1).join('.');
+    const docName = nameWithoutExt;
 
     const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
@@ -111,7 +111,6 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }: Uploa
       onUploadComplete();
       onClose();
       setSelectedFile(null);
-      setDocName('');
       setDocTopic('');
       
     } catch (err: any) {
@@ -150,19 +149,6 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }: Uploa
         </div>
 
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Document Name
-            </label>
-            <input
-              type="text"
-              value={docName}
-              onChange={(e) => setDocName(e.target.value)}
-              placeholder="e.g., Biology Notes Chapter 1"
-              className="w-full px-4 py-2 bg-black/40 border border-white/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-neon-cyan/50 text-white placeholder-gray-500"
-            />
-          </div>
-
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
               Topic (Optional)
@@ -215,9 +201,9 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }: Uploa
 
           <button
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading || !docName.trim()}
+            disabled={!selectedFile || isUploading}
             className={`w-full py-3 rounded-xl font-ui font-bold transition-all ${
-              !selectedFile || isUploading || !docName.trim()
+              !selectedFile || isUploading
                 ? 'bg-muted text-muted-foreground cursor-not-allowed' 
                 : 'bg-neon-cyan text-black hover:bg-neon-cyan/90'
             }`}
