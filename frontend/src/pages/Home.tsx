@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/Auth';
 import { supabase } from '../supabaseClient'; // Added import for supabase
 import LoginModal from '../components/LoginModal';
@@ -15,12 +15,37 @@ import {
   User
 } from 'lucide-react';
 
-const recentDocs = [
-  { id: 1, name: 'Biology Chapter 5', questions: 24, lastStudied: '2 hours ago' },
-  { id: 2, name: 'Physics Formulas', questions: 18, lastStudied: '1 day ago' },
-  { id: 3, name: 'History Notes', questions: 32, lastStudied: '2 days ago' },
+/*
+const recentDocsDummy = [
+  { id: 1, name: 'Math Revision', questions: 10, lastStudied: '2 days ago' },
+  { id: 2, name: 'Science Quiz', questions: 8, lastStudied: '1 week ago' },
+  { id: 3, name: 'History Facts', questions: 5, lastStudied: '2 weeks ago' },
   { id: 4, name: 'Chemistry Review', questions: 15, lastStudied: '3 days ago' },
 ];
+*/
+
+const formatTimeAgo = (dateString: string) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  
+  let interval = seconds / 31536000;
+  if (interval > 1) return Math.floor(interval) + " years ago";
+  
+  interval = seconds / 2592000;
+  if (interval > 1) return Math.floor(interval) + " months ago";
+  
+  interval = seconds / 86400;
+  if (interval > 1) return Math.floor(interval) + " days ago";
+  
+  interval = seconds / 3600;
+  if (interval > 1) return Math.floor(interval) + " hours ago";
+  
+  interval = seconds / 60;
+  if (interval > 1) return Math.floor(interval) + " minutes ago";
+  
+  return Math.floor(seconds) + " seconds ago";
+};
 
 const studyCalendar = (() => {
   // Generate 6 months of data
@@ -50,10 +75,58 @@ const getIntensityColor = (intensity: number) => {
   }
 };
 
+interface Document {
+  id: string; // Changed from number to string to match UUID
+  name: string;
+  questions: number;
+  lastStudied?: string;
+  created_at?: string;
+}
+
 export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [recentDocs, setRecentDocs] = useState<Document[]>([]);
+
+  useEffect(() => {
+    const fetchRecentDocs = async () => {
+      if (user) {
+        try {
+          const session = await supabase.auth.getSession();
+          const token = session.data.session?.access_token;
+          
+          if (token) {
+            const response = await fetch('http://127.0.0.1:8000/recent-documents', {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              // Transform data to match UI, calculating 'lastStudied' if possible, or using created_at
+             const transformedDocs = data.map((doc: any) => {
+                const timeAgo = doc.last_interaction ? formatTimeAgo(doc.last_interaction) : 'Unknown';
+                const action = doc.interaction_type === 'played' ? 'Played' : 'Uploaded';
+                return {
+                  id: doc.id,
+                  name: doc.name,
+                  questions: doc.questions || 0,
+                  lastStudied: `${action} ${timeAgo}`
+                };
+              });
+              setRecentDocs(transformedDocs);
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching recent documents:", error);
+        }
+      }
+    };
+
+    fetchRecentDocs();
+  }, [user]);
 
   const handleProfileClick = async () => {
     // Fire-and-forget call to backend logging
