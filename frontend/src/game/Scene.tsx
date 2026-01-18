@@ -208,7 +208,7 @@ function GameLoop() {
         
         // Create Gain Node (Volume Control)
         const gainNode = ctx.createGain()
-        gainNode.gain.value = 0.25 // Reduced to 25% per user request
+        gainNode.gain.value = 0.5 // Increased to 50% to match SFX
         
         // Connect: Source -> Gain -> Destination
         source.connect(gainNode)
