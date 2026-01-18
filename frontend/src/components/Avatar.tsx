@@ -1,25 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
-interface AvatarProps {
-  modelUrl?: string;
-}
-
-export default function Avatar({ modelUrl }: AvatarProps) {
+export default function Avatar() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [text, setText] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isDancing, setIsDancing] = useState(false);
   const sceneRef = useRef<{
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
-    model: THREE.Group | null;
-    mouth: THREE.Object3D | null;
+    controls: OrbitControls | null;
     animationId: number | null;
   } | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const elevenSocketRef = useRef<WebSocket | null>(null);
+  const avatarRef = useRef<THREE.Object3D | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const danceActionRef = useRef<THREE.AnimationAction | null>(null);
+  const fbxModelRef = useRef<THREE.Group | null>(null);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -46,95 +49,43 @@ export default function Avatar({ modelUrl }: AvatarProps) {
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
 
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
     sceneRef.current = {
       scene,
       camera,
       renderer,
-      model: null,
-      mouth: null,
+      controls,
       animationId: null,
     };
 
-    const loadModel = async (url?: string) => {
-      if (url) {
-        const loader = new GLTFLoader();
-        try {
-          const gltf = await loader.loadAsync(url);
-          if (sceneRef.current) {
-            if (sceneRef.current.model) {
-              sceneRef.current.scene.remove(sceneRef.current.model);
-            }
-            sceneRef.current.model = gltf.scene;
-            sceneRef.current.scene.add(gltf.scene);
-            
-            const findMouth = (obj: THREE.Object3D): THREE.Object3D | null => {
-              if (obj.name.toLowerCase().includes('mouth') || obj.name.toLowerCase().includes('jaw')) {
-                return obj;
-              }
-              for (const child of obj.children) {
-                const found = findMouth(child);
-                if (found) return found;
-              }
-              return null;
-            };
-            
-            sceneRef.current.mouth = findMouth(gltf.scene);
-            
-            const box = new THREE.Box3().setFromObject(gltf.scene);
-            const center = box.getCenter(new THREE.Vector3());
-            const size = box.getSize(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const distance = maxDim * 2;
-            sceneRef.current.camera.position.set(center.x, center.y, center.z + distance);
-            sceneRef.current.camera.lookAt(center);
-          }
-        } catch (error) {
-          console.error('Failed to load model:', error);
-          createDefaultAvatar();
-        }
-      } else {
-        createDefaultAvatar();
-      }
-    };
+    const loader = new GLTFLoader();
+    loader.load('https://models.readyplayer.me/696c0b59b01cd8746d2eb787.glb', (gltf) => {
+      const avatar = gltf.scene;
+      scene.add(avatar);
+      avatarRef.current = avatar;
 
-    const createDefaultAvatar = () => {
-      const headGeometry = new THREE.SphereGeometry(1, 32, 32);
-      const headMaterial = new THREE.MeshStandardMaterial({ color: 0xffdbac });
-      const head = new THREE.Mesh(headGeometry, headMaterial);
-      scene.add(head);
-
-      const eyeGeometry = new THREE.SphereGeometry(0.1, 16, 16);
-      const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
-      
-      const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-      leftEye.position.set(-0.3, 0.2, 0.9);
-      scene.add(leftEye);
-
-      const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
-      rightEye.position.set(0.3, 0.2, 0.9);
-      scene.add(rightEye);
-
-      const mouthGeometry = new THREE.SphereGeometry(0.15, 16, 16);
-      const mouthMaterial = new THREE.MeshStandardMaterial({ color: 0x8b0000 });
-      const mouth = new THREE.Mesh(mouthGeometry, mouthMaterial);
-      mouth.position.set(0, -0.3, 0.9);
-      scene.add(mouth);
-
-      if (sceneRef.current) {
-        sceneRef.current.model = head;
-        sceneRef.current.mouth = mouth;
-      }
-    };
-
-    loadModel(modelUrl);
+      const box = new THREE.Box3().setFromObject(avatar);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const distance = maxDim * 2;
+      camera.position.set(center.x, center.y, center.z + distance);
+      camera.lookAt(center);
+      controls.target.copy(center);
+      controls.update();
+    });
 
     const animate = () => {
-      if (sceneRef.current && sceneRef.current.model) {
-        sceneRef.current.model.rotation.y += 0.01;
-        sceneRef.current.renderer.render(
-          sceneRef.current.scene,
-          sceneRef.current.camera
-        );
+      if (sceneRef.current) {
+        sceneRef.current.controls?.update();
+        updateLipSync();
+        if (mixerRef.current) {
+          mixerRef.current.update(0.016);
+        }
+        sceneRef.current.renderer.render(sceneRef.current.scene, sceneRef.current.camera);
         sceneRef.current.animationId = requestAnimationFrame(animate);
       }
     };
@@ -162,7 +113,7 @@ export default function Avatar({ modelUrl }: AvatarProps) {
         audioContextRef.current.close();
       }
     };
-  }, [modelUrl]);
+  }, []);
 
   const b64ToArrayBuffer = (base64: string): ArrayBuffer => {
     const binaryString = window.atob(base64);
@@ -173,8 +124,37 @@ export default function Avatar({ modelUrl }: AvatarProps) {
     return bytes.buffer;
   };
 
+  const updateLipSync = () => {
+    if (!analyserRef.current || !avatarRef.current) return;
+
+    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+    analyserRef.current.getByteFrequencyData(dataArray);
+
+    const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+    const normalizedVolume = Math.min(average / 80, 1);
+
+    avatarRef.current.traverse((node: any) => {
+      if (node.isMesh && node.morphTargetInfluences && node.morphTargetDictionary) {
+        const mouthOpenIndex = node.morphTargetDictionary['mouthOpen'];
+        if (mouthOpenIndex !== undefined) {
+          node.morphTargetInfluences[mouthOpenIndex] = normalizedVolume;
+        }
+
+        const jawOpenIndex = node.morphTargetDictionary['jawOpen'];
+        if (jawOpenIndex !== undefined) {
+          node.morphTargetInfluences[jawOpenIndex] = normalizedVolume * 0.6;
+        }
+      }
+    });
+  };
+
   const speakText = async () => {
     if (!text.trim() || isSpeaking) return;
+
+    if (elevenSocketRef.current) {
+      elevenSocketRef.current.close();
+      elevenSocketRef.current = null;
+    }
 
     setIsSpeaking(true);
 
@@ -186,7 +166,13 @@ export default function Avatar({ modelUrl }: AvatarProps) {
       await audioContextRef.current.resume();
     }
 
-    const voiceId = '21m00Tcm4TlvDq8ikWAM';
+    if (!analyserRef.current) {
+      analyserRef.current = audioContextRef.current.createAnalyser();
+      analyserRef.current.fftSize = 256;
+      analyserRef.current.connect(audioContextRef.current.destination);
+    }
+
+    const voiceId = 'G3zrXA9moYrFCgwBAvxJ';
     const jwtEndpoint = '/app/jwt/get';
 
     let jwt = '';
@@ -222,9 +208,6 @@ export default function Avatar({ modelUrl }: AvatarProps) {
 
     let outputMsg: {
       audio: ArrayBuffer[];
-      words: string[];
-      wtimes: number[];
-      wdurations: number[];
     } | null = null;
 
     socket.onopen = () => {
@@ -248,30 +231,8 @@ export default function Avatar({ modelUrl }: AvatarProps) {
       }
 
       if (!r.isFinal) {
-        if (r.alignment) {
-          outputMsg = { audio: [], words: [], wtimes: [], wdurations: [] };
-
-          let word = '';
-          let time = 0;
-          let duration = 0;
-          for (let i = 0; i < r.alignment.chars.length; i++) {
-            if (word.length === 0) time = r.alignment.charStartTimesMs[i];
-            if (word.length && r.alignment.chars[i] === ' ') {
-              outputMsg.words.push(word);
-              outputMsg.wtimes.push(time);
-              outputMsg.wdurations.push(duration);
-              word = '';
-              duration = 0;
-            } else {
-              duration += r.alignment.charDurationsMs[i];
-              word += r.alignment.chars[i];
-            }
-          }
-          if (word.length) {
-            outputMsg.words.push(word);
-            outputMsg.wtimes.push(time);
-            outputMsg.wdurations.push(duration);
-          }
+        if (r.alignment && !outputMsg) {
+          outputMsg = { audio: [] };
         }
 
         if (r.audio && outputMsg) {
@@ -297,29 +258,10 @@ export default function Avatar({ modelUrl }: AvatarProps) {
 
         const source = audioContextRef.current!.createBufferSource();
         source.buffer = audioBuffer;
-        source.connect(audioContextRef.current!.destination);
+        source.connect(analyserRef.current!);
         source.start();
 
-        const startTime = audioContextRef.current!.currentTime;
-        const duration = audioBuffer.duration;
-        const animateMouth = () => {
-          if (!sceneRef.current || !sceneRef.current.mouth) return;
-          const elapsed = audioContextRef.current!.currentTime - startTime;
-          if (elapsed < duration) {
-            const scale = 1 + Math.sin(elapsed * 10) * 0.3;
-            sceneRef.current.mouth.scale.set(1, scale, 1);
-            requestAnimationFrame(animateMouth);
-          } else {
-            sceneRef.current.mouth.scale.set(1, 1, 1);
-            setIsSpeaking(false);
-          }
-        };
-        animateMouth();
-
         source.onended = () => {
-          if (sceneRef.current && sceneRef.current.mouth) {
-            sceneRef.current.mouth.scale.set(1, 1, 1);
-          }
           setIsSpeaking(false);
         };
 
@@ -340,12 +282,75 @@ export default function Avatar({ modelUrl }: AvatarProps) {
     };
   };
 
+  const playDance = () => {
+    if (isDancing || !sceneRef.current) return;
+
+    setIsDancing(true);
+
+    const fbxLoader = new FBXLoader();
+    fbxLoader.load('/hiphop_new.fbx', (fbx) => {
+      if (!sceneRef.current) return;
+
+      // Hide the RPM avatar
+      if (avatarRef.current) {
+        avatarRef.current.visible = false;
+      }
+
+      // Scale and position the FBX model
+      fbx.scale.setScalar(0.01);
+      fbx.position.set(0, 0, 0);
+      
+      fbxModelRef.current = fbx;
+      sceneRef.current.scene.add(fbx);
+
+      if (fbx.animations && fbx.animations.length > 0) {
+        const mixer = new THREE.AnimationMixer(fbx);
+        mixerRef.current = mixer;
+
+        const clip = fbx.animations[0];
+        const action = mixer.clipAction(clip);
+        action.setLoop(THREE.LoopRepeat, Infinity);
+        action.play();
+
+        danceActionRef.current = action;
+      }
+    }, undefined, (error) => {
+      console.error('Error loading FBX:', error);
+      setIsDancing(false);
+    });
+  };
+
+  const stopDance = () => {
+    if (danceActionRef.current) {
+      danceActionRef.current.stop();
+      danceActionRef.current = null;
+    }
+    
+    if (mixerRef.current) {
+      mixerRef.current = null;
+    }
+    
+    // Remove the FBX model from scene
+    if (fbxModelRef.current && sceneRef.current) {
+      sceneRef.current.scene.remove(fbxModelRef.current);
+      fbxModelRef.current = null;
+    }
+    
+    // Show the RPM avatar again
+    if (avatarRef.current) {
+      avatarRef.current.visible = true;
+    }
+    
+    setIsDancing(false);
+  };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-gray-900">
       <canvas
         ref={canvasRef}
-        className="w-full max-w-2xl h-96 border border-gray-700 rounded-lg mb-8"
+        className="w-full max-w-2xl h-96 border border-gray-700 rounded-lg mb-4"
       />
+
       <div className="w-full max-w-2xl flex gap-4">
         <input
           type="text"
@@ -367,6 +372,13 @@ export default function Avatar({ modelUrl }: AvatarProps) {
           className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
         >
           {isSpeaking ? 'Speaking...' : 'Speak'}
+        </button>
+        <button
+          onClick={isDancing ? stopDance : playDance}
+          disabled={!avatarRef.current}
+          className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
+        >
+          {isDancing ? 'Stop Dance' : 'Dance'}
         </button>
       </div>
     </div>
