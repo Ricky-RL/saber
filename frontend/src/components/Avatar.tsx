@@ -1,17 +1,17 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
-export default function Avatar() {
+export interface AvatarRef {
+  sayMessage: (message: string) => Promise<void>;
+}
+
+const Avatar = forwardRef<AvatarRef>((_, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [text, setText] = useState('');
-  const [isSpeaking, setIsSpeaking] = useState(false);
   const sceneRef = useRef<{
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
     renderer: THREE.WebGLRenderer;
-    controls: OrbitControls | null;
     animationId: number | null;
   } | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -24,7 +24,6 @@ export default function Avatar() {
 
     const canvas = canvasRef.current;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x202020);
 
     const camera = new THREE.PerspectiveCamera(
       75,
@@ -34,7 +33,8 @@ export default function Avatar() {
     );
     camera.position.z = 5;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setClearColor(0x000000, 0);
     renderer.setSize(canvas.clientWidth, canvas.clientHeight);
 
     const light = new THREE.DirectionalLight(0xffffff, 1);
@@ -44,15 +44,10 @@ export default function Avatar() {
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
 
-    const controls = new OrbitControls(camera, canvas);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-
     sceneRef.current = {
       scene,
       camera,
       renderer,
-      controls,
       animationId: null,
     };
 
@@ -96,13 +91,10 @@ export default function Avatar() {
       const distance = maxDim * 2;
       camera.position.set(center.x, center.y + size.y * 0.3, center.z + distance);
       camera.lookAt(center.x, center.y + size.y * 0.3, center.z);
-      controls.target.set(center.x, center.y + size.y * 0.3, center.z);
-      controls.update();
     });
 
     const animate = () => {
       if (sceneRef.current) {
-        sceneRef.current.controls?.update();
         if (mixerRef.current) {
           mixerRef.current.update(0.016);
         }
@@ -145,15 +137,13 @@ export default function Avatar() {
     return bytes.buffer;
   };
 
-  const speakText = async () => {
-    if (!text.trim() || isSpeaking) return;
+  const speakText = async (text: string) => {
+    if (!text.trim()) return;
 
     if (elevenSocketRef.current) {
       elevenSocketRef.current.close();
       elevenSocketRef.current = null;
     }
-
-    setIsSpeaking(true);
 
     if (!audioContextRef.current) {
       audioContextRef.current = new AudioContext({ sampleRate: 22050 });
@@ -179,7 +169,6 @@ export default function Avatar() {
       }
     } catch (error) {
       console.error('Failed to get JWT:', error);
-      setIsSpeaking(false);
       return;
     }
 
@@ -252,57 +241,33 @@ export default function Avatar() {
         source.connect(audioContextRef.current!.destination);
         source.start();
 
-        source.onended = () => {
-          setIsSpeaking(false);
-        };
-
         outputMsg = null;
       }
     };
 
     socket.onerror = (error) => {
       console.error('WebSocket error:', error);
-      setIsSpeaking(false);
       elevenSocketRef.current = null;
     };
 
     socket.onclose = (event) => {
       console.log('WebSocket closed:', event.code, event.reason);
-      setIsSpeaking(false);
       elevenSocketRef.current = null;
     };
   };
 
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-gray-900">
-      <canvas
-        ref={canvasRef}
-        className="w-full max-w-2xl h-96 border border-gray-700 rounded-lg mb-4"
-      />
+  useImperativeHandle(ref, () => ({
+    sayMessage: speakText,
+  }));
 
-      <div className="w-full max-w-2xl flex gap-4">
-        <input
-          type="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              speakText();
-            }
-          }}
-          placeholder="Enter text to speak..."
-          className="flex-1 px-4 py-2 bg-gray-800 text-white border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500"
-          disabled={isSpeaking}
-        />
-        <button
-          onClick={speakText}
-          disabled={isSpeaking || !text.trim()}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
-        >
-          {isSpeaking ? 'Speaking...' : 'Speak'}
-        </button>
-      </div>
-    </div>
+  return (
+    <canvas
+      ref={canvasRef}
+      className="w-full h-full"
+    />
   );
-}
+});
+
+Avatar.displayName = 'Avatar';
+
+export default Avatar;
