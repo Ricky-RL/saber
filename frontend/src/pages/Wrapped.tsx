@@ -23,6 +23,7 @@ interface WrappedStats {
   global_avg_accuracy: number;
   accuracy_percentile: number;
   activity_percentile: number;
+  total_spent?: number; // Optional, as it might not be in the backend yet
 }
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -250,10 +251,10 @@ const WrappedPage = () => {
         <Confetti width={width} height={height} recycle={false} numberOfPieces={500} colors={['#5865F2', '#EB459E', '#FEE75C', '#57F287']} />
         
         <div className="flex gap-16 items-center">
-            <motion.div 
+             <motion.div 
                 initial={{ y: 50, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                className="w-[500px] bg-black border-2 border-[#5865F2] rounded-3xl p-10 relative overflow-hidden shadow-[0_0_100px_rgba(88,101,242,0.2)]"
+                className="w-[500px] bg-black border-2 border-[#5865F2] rounded-3xl p-10 relative overflow-hidden shadow-[0_0_100px_rgba(88,101,242,0.2)] max-h-[85vh] overflow-y-auto custom-scrollbar"
             >
                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-[#5865F2] via-[#EB459E] to-[#FEE75C]" />
                 
@@ -289,6 +290,32 @@ const WrappedPage = () => {
                         </div>
                         <span className="font-mono text-2xl text-[#57F287]">x{stats.best_streak}</span>
                     </div>
+
+                    <div className="flex justify-between items-center p-6 bg-[#111] rounded-xl border border-white/5 hover:border-white/20 transition-colors">
+                        <div className="flex items-center gap-4">
+                            <Trophy size={24} className="text-[#FEE75C]" />
+                             <span className="font-bold text-xl">Total Score</span>
+                        </div>
+                        <span className="font-mono text-2xl text-[#FEE75C]">{stats.total_score}</span>
+                    </div>
+
+                     <div className="flex justify-between items-center p-6 bg-[#111] rounded-xl border border-white/5 hover:border-white/20 transition-colors">
+                        <div className="flex items-center gap-4">
+                             <div className="w-6 h-6 rounded-full bg-red-500" />
+                             <div className="w-6 h-6 rounded-full bg-blue-500" />
+                             <span className="font-bold text-xl">Fav Colors</span>
+                        </div>
+                        <span className="font-mono text-lg text-white">Default</span>
+                    </div>
+                     
+                    <div className="flex justify-between items-center p-6 bg-[#111] rounded-xl border border-white/5 hover:border-white/20 transition-colors">
+                        <div className="flex items-center gap-4">
+                             <span className="font-bold text-xl text-yellow-400">$</span>
+                             <span className="font-bold text-xl">Total Spent</span>
+                        </div>
+                        <span className="font-mono text-2xl text-yellow-400">${stats.total_spent || 0}</span>
+                    </div>
+
                 </div>
 
                 <div className="mt-12 pt-8 border-t border-white/10 flex justify-between items-end">

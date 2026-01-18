@@ -614,7 +614,7 @@ export default function Profile() {
                   <p className="font-display text-2xl font-bold text-neon-pink">{avgAccuracy}%</p>
                   <p className="text-sm text-muted-foreground">Quiz Score</p>
                 </div>
-                <div className="bg-game-dark/50 p-4 rounded-lg border border-neon-blue/20">
+                <div className="bg-game-dark/50 p-4 rounded-lg border border-neon-blue/20 text-center">
                   <Clock className="w-8 h-8 text-neon-purple mx-auto mb-2" />
                   <p className="font-display text-2xl font-bold text-neon-purple">{totalSessions}</p>
                   <p className="text-sm text-muted-foreground">Total Sessions</p>
