@@ -25,9 +25,12 @@ const Avatar = forwardRef<AvatarRef>((_, ref) => {
     const canvas = canvasRef.current;
     const scene = new THREE.Scene();
 
+    const width = 1800;
+    const height = 1800;
+
     const camera = new THREE.PerspectiveCamera(
       75,
-      canvas.clientWidth / canvas.clientHeight,
+      width / height,
       0.1,
       1000
     );
@@ -35,7 +38,8 @@ const Avatar = forwardRef<AvatarRef>((_, ref) => {
 
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     renderer.setClearColor(0x000000, 0);
-    renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(width, height, false);
 
     const light = new THREE.DirectionalLight(0xffffff, 1);
     light.position.set(5, 5, 5);
@@ -105,12 +109,7 @@ const Avatar = forwardRef<AvatarRef>((_, ref) => {
     animate();
 
     const handleResize = () => {
-      if (!canvasRef.current || !sceneRef.current) return;
-      const width = canvasRef.current.clientWidth;
-      const height = canvasRef.current.clientHeight;
-      sceneRef.current.camera.aspect = width / height;
-      sceneRef.current.camera.updateProjectionMatrix();
-      sceneRef.current.renderer.setSize(width, height);
+      // No resize needed - we use fixed resolution
     };
     window.addEventListener('resize', handleResize);
 
