@@ -363,7 +363,7 @@ export default function Profile() {
             >
               <ChevronLeft className="w-6 h-6" />
             </Link>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="font-display text-3xl font-bold text-neon-cyan text-glow-cyan">
               Profile
             </h1>
           </div>
@@ -371,7 +371,7 @@ export default function Profile() {
           <div className="flex items-center gap-4">
              <Link
                to="/wrapped"
-               className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white px-4 py-2 rounded-full font-bold hover:opacity-90 transition-all transform hover:scale-105 shadow-lg shadow-purple-500/20"
+               className="flex items-center gap-2 font-display font-bold px-5 py-2.5 rounded-lg bg-neon-green/20 text-neon-green border-glow-green hover:bg-neon-green/30 transition-all"
              >
                 <Gift size={18} />
                 <span>Your {currentYear} Wrapped</span>
@@ -379,7 +379,7 @@ export default function Profile() {
 
             <button
               onClick={() => setIsUploadModalOpen(true)}
-              className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-full font-medium hover:bg-gray-200 transition-colors"
+              className="flex items-center gap-2 font-display font-bold text-neon-cyan text-glow-cyan px-4 py-2 rounded-full hover:bg-neon-cyan/10 transition-all"
             >
               <Upload className="w-4 h-4" />
               Upload New

@@ -8,8 +8,6 @@ import {
   Play,
   Pause,
   RotateCcw,
-  X,
-  FileText,
   Check,
   Bot,
 } from 'lucide-react';
