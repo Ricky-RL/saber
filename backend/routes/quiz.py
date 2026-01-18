@@ -1,14 +1,16 @@
 """
-Quiz generation route - handles quiz generation from documents.
+Quiz generation route - handles quiz generation and music generation from documents.
 """
 import base64
 import json
 import requests
-from fastapi import APIRouter, HTTPException
+import os
+from fastapi import APIRouter, HTTPException, Query
 from config import OPENROUTER_API_KEY
 from .documents import get_document, update_document_topic, UpdateTopicRequest
+from .lyra import generate_song_with_lyra, get_bpm_from_difficulty, Difficulty
+from supabase_client import supabase
 from dotenv import load_dotenv
-import os
 load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
@@ -111,23 +113,36 @@ True/false: Use boolean true/false for correct_answer.
 
 
 @router.post("/generate-quiz/{document_id}")
-async def generate_quiz(document_id: str):
+async def generate_quiz(document_id: str, difficulty: str = Query("easy", description="Game difficulty: easy, medium, or hard")):
     """
-    Generate a quiz from a document stored in Supabase.
+    Generate a quiz and music for a document stored in Supabase.
     
-    Fetches the document by document_id, downloads the PDF, and generates a quiz.
-    Updates the document's topic with the generated genre.
+    Fetches the document by document_id, downloads the PDF, generates a quiz and music.
+    Stores both quiz (JSON) and music (file) in Supabase, and updates the document.
     
-    Returns a JSON quiz with:
-    - Balanced mix of multiple choice questions (4 options each) and true/false questions
-    - At least 10 questions (more if content allows)
-    - All answers are 1-4 words maximum to fit in game blocks
-    - Genre/subject area (1-2 words) - also updates the document's topic
+    Parameters:
+    - document_id: UUID of the document
+    - difficulty: Game difficulty level (easy, medium, hard) - defaults to medium
+    
+    Returns a JSON response with:
+    - quiz: Quiz data with questions
+    - music_data: Base64-encoded music file (for immediate use in game)
+    - music_file_path: Path to stored music file in Supabase
+    
+    The quiz is stored in the documents table's 'quiz' column (JSONB).
+    The music file is stored in Supabase storage and path is saved in 'music_file_path'.
     """
     
     try:
         # 1. Fetch document using the get_document endpoint
         document = get_document(document_id)
+        user_id = document.get("user_id")
+        
+        if not user_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Document missing user_id"
+            )
         
         # 2. Get signed URL for the PDF file (from document response)
         file_url = document.get("file_url")
@@ -145,13 +160,74 @@ async def generate_quiz(document_id: str):
         # 4. Encode PDF to base64
         pdf_base64 = encode_pdf_to_base64(pdf_bytes)
         
-        # 5. Generate quiz
-        quiz_json_str = generate_quiz_from_pdf(pdf_base64)
+        # 5. Generate quiz and music in parallel for efficiency
+        import asyncio
         
-        # 6. Parse the JSON string
+        # OPTIMIZATION: Generate quiz and music in parallel (they don't depend on each other)
+        difficulty_enum = Difficulty(difficulty.lower())
+        bpm = get_bpm_from_difficulty(difficulty_enum)
+        
+        print(f"🚀 Starting parallel generation: quiz + music (BPM: {bpm})")
+        
+        # Run quiz and music generation concurrently
+        # Quiz generation is synchronous, so wrap it in a thread
+        quiz_task = asyncio.to_thread(generate_quiz_from_pdf, pdf_base64)
+        music_task = generate_song_with_lyra(bpm)
+        
+        # Wait for both to complete in parallel
+        quiz_json_str, music_bytes = await asyncio.gather(quiz_task, music_task)
+        
+        print(f"✅ Both quiz and music generation completed")
+        
+        # Parse quiz JSON
         quiz_data = json.loads(quiz_json_str)
         
-        # 7. Update document topic with the genre from quiz response using update_document_topic endpoint
+        # 6. Store quiz and difficulty in Supabase (update documents table)
+        # Remove document_id from quiz_data if present (it's already stored)
+        if "document_id" in quiz_data:
+            del quiz_data["document_id"]
+        
+        # Update document with quiz JSON and difficulty
+        quiz_update_response = supabase.table("documents").update({
+            "quiz": quiz_data,
+            "difficulty": difficulty.lower()  # Store difficulty (easy, medium, hard)
+        }).eq("id", document_id).execute()
+        
+        if not quiz_update_response.data:
+            print(f"Warning: Failed to update quiz and difficulty for document {document_id}")
+        
+        # 7. Store music file in Supabase storage
+        # Generate unique filename for music
+        music_file_name = f"{user_id}/music_{document_id}_{os.urandom(4).hex()}.wav"
+        
+        try:
+            # Upload music to Supabase Storage (using documents bucket for now)
+            upload_response = supabase.storage.from_("documents").upload(
+                music_file_name,
+                music_bytes,
+                {"content-type": "audio/wav"}
+            )
+            
+            # Check for errors
+            if hasattr(upload_response, 'error') and upload_response.error:
+                raise Exception(f"Storage upload error: {upload_response.error}")
+            if isinstance(upload_response, dict) and 'error' in upload_response:
+                raise Exception(f"Storage upload error: {upload_response['error']}")
+            
+            # Update document with music_file_path
+            music_update_response = supabase.table("documents").update({
+                "music_file_path": music_file_name
+            }).eq("id", document_id).execute()
+            
+            if not music_update_response.data:
+                print(f"Warning: Failed to update music_file_path for document {document_id}")
+                
+        except Exception as music_storage_error:
+            print(f"Error storing music file: {music_storage_error}")
+            # Don't fail the request if music storage fails - we still return the music data
+            music_file_name = None
+        
+        # 8. Update document topic with the genre from quiz response
         if "genre" in quiz_data and quiz_data["genre"]:
             try:
                 update_request = UpdateTopicRequest(topic=quiz_data["genre"])
@@ -160,11 +236,16 @@ async def generate_quiz(document_id: str):
                 # Log error but don't fail the request
                 print(f"Error updating topic for document {document_id}: {update_error}")
         
-        # 8. Remove document_id from response (it's already stored)
-        if "document_id" in quiz_data:
-            del quiz_data["document_id"]
+        # 9. Return quiz data and music data (base64 encoded for frontend)
+        music_base64 = base64.b64encode(music_bytes).decode("utf-8")
         
-        return quiz_data
+        return {
+            "quiz": quiz_data,
+            "music_data": music_base64,  # Base64-encoded WAV file for immediate use
+            "music_file_path": music_file_name,  # Path in Supabase storage
+            "difficulty": difficulty,
+            "document_id": document_id
+        }
         
     except HTTPException:
         # Re-raise HTTP exceptions as-is
@@ -179,8 +260,34 @@ async def generate_quiz(document_id: str):
             status_code=500,
             detail=f"Error downloading document: {str(e)}"
         )
+    except ValueError as e:
+        # Invalid difficulty enum
+        print(f"❌ ValueError in generate_quiz: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid difficulty: {str(e)}"
+        )
     except Exception as e:
+        # Log the full error for debugging
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"❌ Error in generate_quiz endpoint:")
+        print(f"Error type: {type(e).__name__}")
+        print(f"Error message: {str(e)}")
+        print(f"Traceback:\n{error_traceback}")
+        
+        # Provide more specific error message
+        error_detail = str(e)
+        if "lyra" in error_detail.lower() or "vertex" in error_detail.lower() or "google" in error_detail.lower():
+            error_detail = f"Music generation failed: {error_detail}"
+        elif "quiz" in error_detail.lower() or "openrouter" in error_detail.lower() or "gemini" in error_detail.lower():
+            error_detail = f"Quiz generation failed: {error_detail}"
+        elif "supabase" in error_detail.lower() or "storage" in error_detail.lower():
+            error_detail = f"Storage error: {error_detail}"
+        else:
+            error_detail = f"An error occurred while processing the document: {error_detail}"
+        
         raise HTTPException(
             status_code=500,
-            detail=f"An error occurred while processing the document: {str(e)}"
+            detail=error_detail
         )

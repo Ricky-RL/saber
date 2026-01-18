@@ -8,6 +8,8 @@ import GamePage from './game/GamePage';
 import AvatarPage from './pages/Avatar';
 import WrappedPage from './pages/Wrapped';
 import Explore from './pages/Explore';
+import Extension from './pages/Extension';
+import DifficultySelection from './pages/DifficultySelection';
 
 
 function App() {
@@ -25,6 +27,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/difficulty" element={<DifficultySelection />} />
           <Route path="/game" element={<GamePage />} />
           <Route path="/explore" element={<Explore />} />
           <Route path="/avatar" element={<AvatarPage />} />

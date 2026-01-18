@@ -10,17 +10,15 @@ export default function DifficultySelection() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState<Difficulty | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [useCustomSong, setUseCustomSong] = useState(false); // Toggle for custom song generation (default: OFF - use default song)
 
   const handleDifficultySelect = async (difficulty: Difficulty) => {
     setLoading(difficulty);
     setError(null);
 
-    // Navigate immediately to game page - audio will be generated in the background if toggle is on
+    // Navigate to game page - music will be generated during document upload based on difficulty
     navigate('/game', {
       state: {
         difficulty: difficulty.toUpperCase() as 'EASY' | 'MEDIUM' | 'HARD',
-        isGeneratingAudio: useCustomSong, // Only generate if toggle is enabled
       },
     });
   };
@@ -99,51 +97,10 @@ export default function DifficultySelection() {
             <span className="text-neon-magenta text-glow-magenta ml-2">DIFFICULTY</span>
           </h2>
           <p className="text-muted-foreground font-ui text-lg">
-            Choose your challenge level. Toggle custom song generation below.
+            Choose your challenge level. Music will be generated when you upload your document.
           </p>
         </motion.section>
 
-        {/* Toggle for custom song generation */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="flex items-center justify-center mb-8"
-        >
-          <div className="glass-card rounded-xl p-4 border-2 border-neon-cyan/50 bg-gradient-to-r from-neon-cyan/10 to-neon-magenta/10">
-            <label className="flex items-center gap-4 cursor-pointer">
-              <span className="text-foreground font-ui text-sm font-medium">
-                Use custom AI-generated song
-              </span>
-              <div
-                onClick={() => setUseCustomSong(!useCustomSong)}
-                className={`
-                  relative w-14 h-7 rounded-full transition-all duration-300
-                  ${useCustomSong 
-                    ? 'bg-gradient-to-r from-neon-cyan to-neon-magenta' 
-                    : 'bg-gray-600'
-                  }
-                `}
-              >
-                <div
-                  className={`
-                    absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-all duration-300
-                    ${useCustomSong ? 'translate-x-7' : 'translate-x-0'}
-                    shadow-lg
-                  `}
-                />
-              </div>
-              <span className="text-muted-foreground font-ui text-xs">
-                {useCustomSong ? 'ON' : 'OFF'}
-              </span>
-            </label>
-            {!useCustomSong && (
-              <p className="text-muted-foreground text-xs mt-2 text-center">
-                Using default song from audio files
-              </p>
-            )}
-          </div>
-        </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {difficulties.map((diff, index) => {
@@ -214,7 +171,7 @@ export default function DifficultySelection() {
             className="text-center mt-6"
           >
             <p className="text-neon-cyan font-ui">
-              Generating your custom song...
+              Redirecting to game...
             </p>
           </motion.div>
         )}

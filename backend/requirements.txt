@@ -5,7 +5,7 @@ python-dotenv
 httpx
 python-multipart
 pydub
-audioop-lts
+#audioop-lts
 google-auth
 google-auth-oauthlib
 google-auth-httplib2

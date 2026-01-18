@@ -144,22 +144,28 @@ async def generate_song_with_lyra(bpm: int) -> bytes:
     }
     
     prompt = (
-        f"Generate a high-energy electronic video game music track at {bpm} BPM. "
+        f"Generate an upbeat, energetic video game music track at exactly {bpm} BPM. "
+        f"CRITICAL: The track MUST have extremely clear, strong, and detectable beats that are easily identifiable by beat detection algorithms. "
         f"Style: Video game music similar to Beat Saber's intro song - energetic, pump-inducing, and perfectly structured for gameplay. "
-        f"The track should have clear, well-defined beats that are easy to follow, with a cohesive and flowing structure (not fragmented). "
-        f"Use driving synths, crisp percussion, and a solid bassline that supports the rhythm without overpowering it. "
-        f"The music should feel like it belongs in a rhythm game - engaging and motivating, but balanced and structured. "
-        f"Think: video game soundtrack meets electronic dance music - polished, cohesive, and designed for interactive gameplay. "
-        f"The beat should be prominent and clear enough to follow precisely, but the overall mix should be balanced and musical. "
-        f"Avoid chaotic or overwhelming elements - this is game music that enhances the experience, not club music that dominates it."
+        f"The track must have prominent, punchy kick drums on every beat (1, 2, 3, 4) with clear transients that stand out in the mix. "
+        f"Use driving synths with bright, energetic melodies, crisp and sharp percussion (especially snare/clap on beats 2 and 4), and a solid bassline that emphasizes the downbeat. "
+        f"The kick drum must be the most prominent element - loud, clear, and with sharp attack transients that beat detection software can easily identify. "
+        f"Each beat should be clearly defined with a strong percussive element (kick or snare) that creates a distinct peak in the audio waveform. "
+        f"The rhythm must be perfectly quantized and consistent - no swing, no timing variations. Every beat must land exactly on time. "
+        f"The music should feel like it belongs in a rhythm game - upbeat, engaging, and motivating with a fun game-like energy. "
+        f"Think: upbeat video game soundtrack with electronic elements - polished, cohesive, and designed for interactive gameplay with machine-detectable beats. "
+        f"The beat pattern should be simple and repetitive (four-on-the-floor or similar) to ensure maximum beat detection accuracy. "
+        f"Avoid complex polyrhythms, syncopation, or subtle beats - every beat must be obvious and detectable."
     )
     
-    # Negative prompt to avoid club/festival music and fragmented styles
+    # Negative prompt to avoid club/festival music, fragmented styles, and unclear beats
     negative_prompt = (
-        "club music, festival music, overpowering beats, chaotic, fragmented, disjointed, "
+        "club music, festival music, chaotic, fragmented, disjointed, "
         "too aggressive, overwhelming bass, distorted, harsh, club remix, festival anthem, "
         "soft, ambient, subtle, quiet, gentle, calm, relaxing, background music, "
-        "unclear beats, muffled percussion, minimal, lo-fi, experimental, abstract"
+        "unclear beats, muffled percussion, minimal, lo-fi, experimental, abstract, "
+        "syncopated rhythms, complex polyrhythms, swing, timing variations, subtle beats, "
+        "reverb-heavy drums, compressed beats, buried kick drums, unclear transients"
     )
     
     # Vertex AI Lyria payload structure
@@ -178,8 +184,18 @@ async def generate_song_with_lyra(bpm: int) -> bytes:
     }
     
     # Use httpx for async requests (faster than requests)
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(url, headers=headers, json=payload)
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(url, headers=headers, json=payload)
+    except httpx.TimeoutException:
+        raise ValueError(
+            "Music generation timed out after 60 seconds. "
+            "The request may be taking too long. Please try again."
+        )
+    except httpx.RequestError as e:
+        raise ValueError(
+            f"Failed to connect to music generation service: {str(e)}"
+        )
     
     # Provide helpful error messages for common issues
     if response.status_code == 401 or response.status_code == 403:
@@ -199,10 +215,26 @@ async def generate_song_with_lyra(bpm: int) -> bytes:
         )
         raise ValueError(error_msg)
     
-    response.raise_for_status()
+    # Check for errors before parsing JSON (after handling 401/403/404 above)
+    if response.status_code != 200:
+        try:
+            error_data = response.json()
+            error_msg = error_data.get("error", {}).get("message", response.text)
+        except:
+            error_msg = response.text[:500]  # Limit error message length
+        
+        raise ValueError(
+            f"Music generation API returned error (status {response.status_code}): {error_msg}"
+        )
     
     # Parse the response - Vertex AI returns predictions with base64 encoded audio
-    response_data = response.json()
+    try:
+        response_data = response.json()
+    except Exception as e:
+        raise ValueError(
+            f"Failed to parse music generation response: {str(e)}. "
+            f"Response status: {response.status_code}, Response text (first 200 chars): {response.text[:200]}"
+        )
     
     # Extract audio data from Vertex AI response structure
     # Vertex AI Lyria returns: { "predictions": [{ "bytesBase64Encoded": "..." }] }
