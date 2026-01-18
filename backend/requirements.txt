@@ -2,6 +2,9 @@ fastapi
 uvicorn
 supabase
 python-dotenv
-websockets
-PyJWT
-httpx
+requests
+python-multipart
+pydub
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
