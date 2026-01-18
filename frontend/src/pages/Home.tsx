@@ -659,7 +659,7 @@ export default function Home() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Total Questions</span>
-                  <span className="font-display text-neon-purple">{stats ? Math.round(stats.total_questions / 4) : 0}</span>
+                  <span className="font-display text-neon-purple">{stats ? Math.round(stats.total_questions) : 0}</span>
                 </div>
                  <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Avg Quiz Score</span>
