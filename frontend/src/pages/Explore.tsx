@@ -30,6 +30,19 @@ export default function Explore() {
   const [loading, setLoading] = useState(true);
   const [likingDocs, setLikingDocs] = useState<Set<string>>(new Set());
 
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty.toLowerCase()) {
+      case 'medium':
+        return 'bg-neon-yellow/20 text-neon-yellow border-neon-yellow/30';
+      case 'easy':
+        return 'bg-neon-green/20 text-neon-green border-neon-green/30';
+      case 'hard':
+        return 'bg-neon-red/20 text-neon-red border-neon-red/30';
+      default:
+        return 'bg-neon-pink/20 text-neon-pink border-neon-pink/30';
+    }
+  };
+
   useEffect(() => {
     fetchDocuments();
   }, [searchQuery]); // Re-fetch when search query changes (debounce ideally, but simple for now)
@@ -147,7 +160,7 @@ export default function Explore() {
                                 </span>
                             )}
                             {doc.difficulty && (
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-neon-pink/20 text-neon-pink border border-neon-pink/30 uppercase tracking-wider">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${getDifficultyColor(doc.difficulty)}`}>
                                 {doc.difficulty.toUpperCase()}
                                 </span>
                             )}

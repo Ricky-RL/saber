@@ -105,7 +105,7 @@ export default function Home() {
           const token = session.data.session?.access_token;
           
           if (token) {
-            const response = await fetch('http://127.0.0.1:8000/recent-documents', {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/recent-documents`, {
               headers: {
                 'Authorization': `Bearer ${token}`
               }
@@ -220,7 +220,7 @@ export default function Home() {
     if (user) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.access_token) {
-          fetch('http://127.0.0.1:8000/api/log-profile-visit', {
+          fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/log-profile-visit`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${session.access_token}`

@@ -38,7 +38,7 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }: Uploa
     const nameWithoutExt = selectedFile.name.split('.').slice(0, -1).join('.');
     const docName = nameWithoutExt;
 
-    const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
     try {
       // 1. Upload file to Supabase Storage

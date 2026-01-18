@@ -133,7 +133,7 @@ export default function Profile() {
     try {
       console.log('Fetching history for user:', user?.id);
       
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/game/history/${user?.id}`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/game/history/${user?.id}`);
       if (!response.ok) {
         throw new Error('Failed to fetch history');
       }
@@ -154,26 +154,26 @@ export default function Profile() {
       if(!user?.id) return;
 
       // Fetch Items
-      const itemsRes = await fetch(`${import.meta.env.VITE_API_URL}/store/items`);
+      const itemsRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/store/items`);
       if (itemsRes.ok) {
         setStoreItems(await itemsRes.json());
       }
 
       // Fetch Balance
-      const balanceRes = await fetch(`${import.meta.env.VITE_API_URL}/store/balance/${user.id}`);
+      const balanceRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/store/balance/${user.id}`);
       if (balanceRes.ok) {
         const data = await balanceRes.json();
         setUserBalance(data.balance);
       }
 
       // Fetch Purchases
-      const purchasesRes = await fetch(`${import.meta.env.VITE_API_URL}/store/purchases/${user.id}`);
+      const purchasesRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/store/purchases/${user.id}`);
       if (purchasesRes.ok) {
         setPurchasedItems(await purchasesRes.json());
       }
 
       // Fetch Equipped
-      const equippedRes = await fetch(`${import.meta.env.VITE_API_URL}/store/equipped/${user.id}`);
+      const equippedRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/store/equipped/${user.id}`);
       if (equippedRes.ok) {
         setEquippedItems(await equippedRes.json());
       }
@@ -186,7 +186,7 @@ export default function Profile() {
   const handlePurchase = async (itemId: string) => {
     try {
         if(!user?.id) return;
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/store/purchase`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/store/purchase`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: user.id, item_id: itemId })
@@ -209,7 +209,7 @@ export default function Profile() {
   const handleEquip = async (itemId: string, itemType: string) => {
     try {
         if(!user?.id) return;
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/store/equip`, {
+        const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/store/equip`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: user.id, item_id: itemId, item_type: itemType })
@@ -262,7 +262,7 @@ export default function Profile() {
     if (!user?.id) return;
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/get-agent/${user.id}/${doc.id}`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/get-agent/${user.id}/${doc.id}`);
       if (!response.ok) {
         throw new Error('Failed to fetch agent ID');
       }
