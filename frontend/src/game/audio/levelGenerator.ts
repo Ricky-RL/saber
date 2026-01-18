@@ -107,7 +107,7 @@ export function generateLevel(audioData: AudioAnalysisData, passedQuestions: Que
   let questions = passedQuestions.length > 0 ? passedQuestions : PLACEHOLDER_QUESTIONS;
   
   // Randomize Questions
-  // We double the list to ensure we have enough for a long song
+  // We triple the list to ensure we have enough for a long song
   questions = [...questions, ...questions, ...questions]
       .sort(() => Math.random() - 0.5)
       .map(q => {

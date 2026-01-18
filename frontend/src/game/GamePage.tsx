@@ -17,6 +17,7 @@ function GamePage() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<'EASY' | 'MEDIUM' | 'HARD'>('EASY')
   const statsUploadedRef = useRef(false) // Prevent duplicate stat uploads
   const quizGenerationInProgressRef = useRef(false) // Prevent duplicate quiz generation calls
+  const fetchAttemptedRef = useRef(false) // Prevent retries on error when fetching existing document
   const [uploadedDocumentId, setUploadedDocumentId] = useState<string | null>(null) // Track uploaded doc ID if created in-game
 
   const location = useLocation()
@@ -208,41 +209,40 @@ function GamePage() {
   // --- HARDCODED AUDIO SETUP (fallback) ---
   const HARDCODED_AUDIO_URL = '/Beat Saber.mp3'
 
-  // Workflow 3: Play existing document from Profile (documentId in query param or state)
+  // Workflow 3: Play existing document from Profile/Home/Explore (documentId in query param or state)
   useEffect(() => {
       // Prioritize query param
       const targetDocId = queryDocumentId || locationState?.documentId;
 
-      if (targetDocId && !hasGenerated && !loading) {
+      // Prevent retries if we've already attempted and failed, or if already generated
+      if (targetDocId && !hasGenerated && !loading && !fetchAttemptedRef.current) {
           console.log("🎮 Playing existing document:", targetDocId);
+          fetchAttemptedRef.current = true; // Mark as attempted to prevent retries
           
-          const generateQuizFromExisting = async () => {
+          const fetchGameDataFromExisting = async () => {
               setLoading(true);
               const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
               
               try {
                   const session = await supabase.auth.getSession();
-                  // Use selectedDifficulty from UI if available, otherwise fall back to locationState or default
-                  const difficulty = selectedDifficulty || locationState?.difficulty || 'EASY'
-                  const difficultyLower = difficulty.toLowerCase() as 'easy' | 'medium' | 'hard'
                   
-                  // Generate quiz + music from existing document
-                  console.log("🧠 Generating Quiz & Music from existing document...");
-                  const quizRes = await fetch(`${API_URL}/generate-quiz/${targetDocId}?difficulty=${difficultyLower}`, {
-                      method: 'POST',
+                  // Fetch quiz + music from existing document using GET endpoint
+                  console.log("📥 Fetching Quiz & Music from existing document...");
+                  const gameDataRes = await fetch(`${API_URL}/game/data/${targetDocId}`, {
+                      method: 'GET',
                       headers: {
                           'Authorization': `Bearer ${session.data.session?.access_token}`,
                           'Content-Type': 'application/json'
                       }
                   });
 
-                  if (!quizRes.ok) {
-                      const err = await quizRes.json();
-                      throw new Error(err.detail || "Quiz and music generation failed");
+                  if (!gameDataRes.ok) {
+                      const err = await gameDataRes.json();
+                      throw new Error(err.detail || "Failed to fetch quiz and music data");
                   }
 
-                  const responseData = await quizRes.json();
-                  console.log("✅ Quiz & Music Generated:", {
+                  const responseData = await gameDataRes.json();
+                  console.log("✅ Quiz & Music Fetched:", {
                       hasQuiz: !!responseData.quiz,
                       hasMusicData: !!responseData.music_data,
                       music_file_path: responseData.music_file_path,
@@ -280,6 +280,10 @@ function GamePage() {
 
                   // Map questions
                   const mappedQuestions = mapQuizQuestions(responseData.quiz.questions);
+                  
+                  // Use difficulty from response, or fallback to selectedDifficulty/locationState/default
+                  const difficulty = (responseData.difficulty?.toUpperCase() || selectedDifficulty || locationState?.difficulty || 'EASY') as 'EASY' | 'MEDIUM' | 'HARD'
+                  
                   console.log('🎮 Starting game with', mappedQuestions.length, 'questions and', audioBuffer.byteLength, 'bytes of audio')
 
                   // Start the game
@@ -289,15 +293,24 @@ function GamePage() {
                   }
                   
               } catch (error: any) {
-                  console.error("Error generating quiz from existing document:", error);
-                  alert(`Error: ${error.message}`);
+                  console.error("Error fetching game data from existing document:", error);
+                  // Set hasGenerated to true to prevent retries
+                  setHasGenerated(true);
                   setLoading(false);
+                  alert(`Error: ${error.message}`);
               }
           };
 
-          generateQuizFromExisting();
+          fetchGameDataFromExisting();
       }
   }, [queryDocumentId, locationState?.documentId, hasGenerated, loading]);
+  
+  // Reset fetchAttemptedRef when documentId changes or component unmounts
+  useEffect(() => {
+      return () => {
+          fetchAttemptedRef.current = false;
+      };
+  }, [queryDocumentId, locationState?.documentId]);
 
   const processAudioAndStartLevel = async (arrayBuffer: ArrayBuffer, quizQuestions: any[] = [], difficulty: 'EASY' | 'MEDIUM' | 'HARD' = 'EASY') => {
     // Don't set loading here - it's already set in handleDocumentUpload
