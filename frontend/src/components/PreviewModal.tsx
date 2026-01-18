@@ -37,13 +37,28 @@ export default function PreviewModal({ isOpen, onClose, document }: PreviewModal
     setLoading(true);
     setError(null);
 
-    try {
-      const { data, error } = await supabase.storage
-        .from('documents')
-        .createSignedUrl(document.file_path, 3600); // 1 hour expiry
+    const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
-      if (error) throw error;
-      setFileUrl(data.signedUrl);
+    try {
+      // Fetch document from backend to get signed URL (bypassing RLS)
+      const res = await fetch(`${API_URL}/document/${document.id}`, {
+          headers: {
+              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+          }
+      });
+
+      if (!res.ok) {
+          throw new Error("Failed to load document");
+      }
+
+      const docData = await res.json();
+      
+      if (docData.file_url) {
+        setFileUrl(docData.file_url);
+      } else {
+        throw new Error("No preview URL available");
+      }
+
     } catch (err: any) {
       console.error('Error getting file URL:', err);
       setError('Could not load document preview.');

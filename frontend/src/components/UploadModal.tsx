@@ -38,39 +38,41 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }: Uploa
     setIsUploading(true);
     setError(null);
 
+    const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
     try {
-      // 1. Upload file to Supabase Storage
-      const fileExt = selectedFile.name.split('.').pop();
-      const fileName = `${user.id}/${Math.random()}.${fileExt}`;
-      const filePath = `${fileName}`;
+      // Upload document only - no quiz generation
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('user_id', user.id);
+      if (docTopic.trim()) {
+        formData.append('topic', docTopic.trim());
+      }
 
-      const { error: uploadError } = await supabase.storage
-        .from('documents')
-        .upload(filePath, selectedFile);
+      console.log("🚀 Uploading Document...");
+      const uploadRes = await fetch(`${API_URL}/document`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: formData
+      });
 
-      if (uploadError) throw uploadError;
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json();
+        throw new Error(err.detail || 'Upload failed');
+      }
 
-      // 2. Insert record into documents table
-      const { error: dbError } = await supabase
-        .from('documents')
-        .insert({
-          user_id: user.id,
-          name: docName.trim(),
-          topic: docTopic.trim() || null, // Add topic
-          file_path: filePath,
-          file_type: selectedFile.type,
-          file_size: selectedFile.size,
-          processed: false,
-          questions: 0
-        });
+      const uploadData = await uploadRes.json();
+      console.log("✅ Document Uploaded:", uploadData);
 
-      if (dbError) throw dbError;
-
+      // Just close and refresh - no quiz generation
       onUploadComplete();
       onClose();
       setSelectedFile(null);
       setDocName('');
       setDocTopic('');
+      
     } catch (err: any) {
       console.error('Upload error:', err);
       setError(err.message || 'Failed to upload document');

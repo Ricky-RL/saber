@@ -25,11 +25,15 @@ function GamePage() {
   const [uploadedDocumentId, setUploadedDocumentId] = useState<string | null>(null) // Track uploaded doc ID if created in-game
 
   const location = useLocation()
+  const searchParams = new URLSearchParams(location.search)
+  const queryDocumentId = searchParams.get('documentId')
+
   const locationState = location.state as { 
     audioData?: ArrayBuffer; 
     difficulty?: 'EASY' | 'MEDIUM' | 'HARD'; 
     documentId?: string;
     isGeneratingAudio?: boolean;
+    quizData?: any;
   } | null
 
 
@@ -55,8 +59,8 @@ function GamePage() {
         const accuracyRaw = totalQuestions > 0 ? (correctCount / totalQuestions) : 0;
         const accuracy =accuracyRaw; // Convert 0.5 -> 50.00
 
-        // Determine Document ID: Use location state OR the one we just uploaded
-        const documentId = locationState?.documentId || uploadedDocumentId
+        // Determine Document ID: Use query param, location state OR the one we just uploaded
+        const documentId = queryDocumentId || locationState?.documentId || uploadedDocumentId
 
         // Constrain payload
         const payload: any = {
@@ -126,12 +130,60 @@ function GamePage() {
       setHandPositions(left, right)
   }
 
+  // Helper to map and validate questions
+  const mapQuizQuestions = (questions: any[]) => {
+      console.log("🧩 Mapping Questions:", questions.length);
+      return questions.map((q: any) => {
+          let qType = 'MCQ';
+          if (q.type === 'true_false' || q.type === 'TRUE_FALSE') qType = 'TRUE_FALSE';
+
+          let answers = [];
+          if (qType === 'TRUE_FALSE') {
+               answers = [
+                   { text: "F", isCorrect: q.correct_answer === false || String(q.correct_answer).toLowerCase() === 'false' }, 
+                   { text: "T", isCorrect: q.correct_answer === true || String(q.correct_answer).toLowerCase() === 'true' }
+               ];
+          } else {
+              // MCQ - Robust String Matching
+              const target = (q.correct_answer || '').trim().toLowerCase();
+              console.log(`🔍 Mapping MCQ: "${q.question}" -> Target: "${target}"`);
+              
+              answers = (q.options || []).map((opt: string) => {
+                  const optNorm = opt.trim().toLowerCase();
+                  const isMatch = optNorm === target;
+                  if (isMatch) console.log(`   ✅ Match: "${opt}"`);
+                  return {
+                      text: opt,
+                      isCorrect: isMatch
+                  };
+              });
+
+              // Debug if no correct answer found
+              if (!answers.some((a: any) => a.isCorrect)) {
+                 console.warn(`   ⚠️ NO MATCH for: "${q.question}" (Target: "${target}")`);
+                 console.warn(`   Options:`, q.options);
+              }
+          }
+
+          return {
+              id: q.id || `q_${Math.random()}`,
+              type: qType,
+              content: {
+                  questionText: q.question,
+                  answers: answers
+              }
+          };
+      });
+  }
+
   // --- HARDCODED AUDIO SETUP ---
   const HARDCODED_AUDIO_URL = '/Beat Saber.mp3'
 
   // Generate audio in background if needed
   useEffect(() => {
     const generateAudio = async () => {
+      // COMMENTED OUT: Using hardcoded song for now
+      /*
       // Only generate if we need to, haven't already generated, aren't currently generating, and haven't failed
       // Also check ref to prevent duplicate requests (React StrictMode causes double renders)
       if (
@@ -203,12 +255,95 @@ function GamePage() {
           audioGenerationInProgress.current = false // Reset flag even on error
         }
       }
+      */
     }
 
     generateAudio()
     // Only depend on locationState properties, not the state variables that change during generation
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationState?.isGeneratingAudio, locationState?.difficulty])
+
+  // Auto-start game if Quiz Data is passed (e.g. from UploadModal) and Audio is ready
+  useEffect(() => {
+     if (locationState?.quizData && generatedAudio && !hasGenerated && !loading) {
+         console.log("🚀 Auto-starting game with passed Quiz Data");
+         
+         const quizData = locationState.quizData;
+         
+         // Map questions
+         const mappedQuestions = mapQuizQuestions(quizData.questions);
+
+        // Use the generated audio
+        processAudioAndStartLevel(generatedAudio, mappedQuestions, locationState.difficulty || 'MEDIUM');
+     }
+  }, [generatedAudio, locationState, hasGenerated, loading]);
+
+  // Workflow 3: Play existing document from Profile (documentId in query param or state)
+  useEffect(() => {
+      // Prioritize query param
+      const targetDocId = queryDocumentId || locationState?.documentId;
+
+      if (targetDocId && !locationState?.quizData && !hasGenerated && !loading) {
+          console.log("🎮 Playing existing document:", targetDocId);
+          
+          const generateQuizFromExisting = async () => {
+              setLoading(true);
+              const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+              
+              try {
+                  // Load hardcoded audio
+                  const audioResponse = await fetch(HARDCODED_AUDIO_URL);
+                  if (!audioResponse.ok) throw new Error("Failed to load game audio");
+                  const audioBuffer = await audioResponse.arrayBuffer();
+                  
+                  // Generate quiz from existing document
+                  console.log("🧠 Generating Quiz from existing document...");
+                  const quizRes = await fetch(`${API_URL}/generate-quiz/${targetDocId}`, {
+                      method: 'POST',
+                      headers: {
+                          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+                      }
+                  });
+
+                  if (!quizRes.ok) {
+                      const err = await quizRes.json();
+                      throw new Error(err.detail || "Quiz generation failed");
+                  }
+
+                  const quizData = await quizRes.json();
+                  console.log("✅ Quiz Generated:", quizData);
+
+                  // Update topic if needed
+                  if (quizData.genre) {
+                      await fetch(`${API_URL}/document/${targetDocId}/topic`, {
+                          method: 'PUT',
+                          headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+                          },
+                          body: JSON.stringify({ topic: quizData.genre })
+                      });
+                  }
+
+                  // Map questions
+                  const mappedQuestions = mapQuizQuestions(quizData.questions);
+
+                  // Start the game
+                  await processAudioAndStartLevel(audioBuffer, mappedQuestions, 'MEDIUM');
+                  if (targetDocId) {
+                      setUploadedDocumentId(targetDocId);
+                  }
+                  
+              } catch (error: any) {
+                  console.error("Error generating quiz from existing document:", error);
+                  alert(`Error: ${error.message}`);
+                  setLoading(false);
+              }
+          };
+
+          generateQuizFromExisting();
+      }
+  }, [queryDocumentId, locationState?.documentId, hasGenerated, loading]);
 
   const processAudioAndStartLevel = async (arrayBuffer: ArrayBuffer, quizQuestions: any[] = [], difficulty: 'EASY' | 'MEDIUM' | 'HARD' = 'MEDIUM') => {
     // Don't set loading here - it's already set in handleDocumentUpload
@@ -311,274 +446,85 @@ function GamePage() {
 
         // 2. Upload PDF to Storage & DB, then Generate Quiz
         let docId = '';
+        const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
         // Only perform upload if user is logged in
         if (user) {
-             const fileName = `${user.id}/${Date.now()}_${file.name}`
-             const { data: uploadData, error: uploadError } = await supabase.storage
-                .from('documents')
-                .upload(fileName, file)
-
-             if (uploadError) throw uploadError
-
-             console.log("File uploaded to Supabase Storage:", uploadData)
-
-             // Save Document Metadata to DB
-             const { data: docData, error: docError } = await supabase
-                .from('documents')
-                .insert({
-                    user_id: user.id,
-                    name: file.name,
-                    file_path: uploadData.path,
-                    file_size: file.size,
-                    file_type: file.type,
-                    topic: 'Unknown' 
-                })
-                .select()
-                .single()
+             const formData = new FormData();
+             formData.append('file', file);
+             formData.append('user_id', user.id);
+             // handleDocumentUpload doesn't seem to have topic input, send default or ignore
              
-             if (docError) throw docError
-             console.log("Document saved to DB:", docData)
-             
-             docId = docData.id
-             setUploadedDocumentId(docId)
+             console.log("🚀 Starting Upload (GamePage)...");
+             const uploadRes = await fetch(`${API_URL}/document`, {
+                 method: 'POST',
+                 headers: {
+                    'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+                 },
+                 body: formData
+             });
 
-             // Generate Quiz via Backend with correct Doc ID
-             /*
-             const quizResponse = await fetch(`${API_URL}/generate-quiz/${docId}`, {
+             if (!uploadRes.ok) {
+                 const err = await uploadRes.json();
+                 throw new Error(err.detail || 'Upload failed');
+             }
+
+             const uploadData = await uploadRes.json();
+             console.log("✅ Upload Complete:", uploadData);
+             docId = uploadData.id;
+             setUploadedDocumentId(docId);
+
+             // Generate Quiz via Backend
+             console.log("🧠 Generating Quiz...");
+             const quizRes = await fetch(`${API_URL}/generate-quiz/${docId}`, {
                  method: 'POST',
                  headers: {
                     'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
                  }
-             })
+             });
 
-             if (!quizResponse.ok) {
-                 const err = await quizResponse.json()
-                 throw new Error(err.detail || "Quiz generation failed")
+             if (!quizRes.ok) {
+                 const err = await quizRes.json();
+                 throw new Error(err.detail || "Quiz generation failed");
              }
 
-             const quizData = await quizResponse.json()
+             const quizData = await quizRes.json();
+             console.log("✅ Quiz Generated:", quizData);
+
+             // Update Topic if needed
+             if (quizData.genre) {
+                  await fetch(`${API_URL}/document/${docId}/topic`, {
+                      method: 'PUT',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+                      },
+                      body: JSON.stringify({ topic: quizData.genre })
+                  });
+             }
+             
+             // Use REAL generated data
+             // We need to map it to the format expected by processAudioAndStartLevel
+             // But first, let's skip the hardcoded part below
+             
+             /* 
+                We will use a flag or return here to bypass the hardcoded block 
+                that follows in the original code. 
+                However, the original code had "HARDCODED DATA (REMOVE THIS...)" 
+                I should replace that section too.
              */
-        }
-
-        // IMPORTANT: Uncomment above for Real Backend functionality
-        /*
-        const formData = new FormData()
-        // ...existing code...
-        if (quizData.document_id) {
-             setUploadedDocumentId(quizData.document_id)
-        }
-        */
-       
-        // HARDCODED DATA (REMOVE THIS WHEN BACKEND IS READY)
-        // If we created a real doc, use its ID. Otherwise use placeholder.
-        const effectiveDocId = docId || "DOC_a5831ebb" 
-        
-        const quizData = {
-            "document_id": effectiveDocId,
-            "genre": "Regression Testing",
-            "questions": [
-                {
-                    "id": 1,
-                    "type": "mcq",
-                    "question": "What is regression testing?",
-                    "options": [
-                        "Return to former state",
-                        "Ensure no new faults",
-                        "Improve software quality",
-                        "Add new capabilities"
-                    ],
-                    "correct_answer": "Ensure no new faults"
-                },
-                {
-                    "id": 2,
-                    "type": "true_false",
-                    "question": "Regression testing is only needed for corrective maintenance.",
-                    "options": [],
-                    "correct_answer": false
-                },
-                {
-                    "id": 3,
-                    "type": "mcq",
-                    "question": "Which maintenance type requires regression testing?",
-                    "options": [
-                        "Corrective only",
-                        "Adaptive only",
-                        "Perfective only",
-                        "All types"
-                    ],
-                    "correct_answer": "All types"
-                },
-                {
-                    "id": 4,
-                    "type": "true_false",
-                    "question": "Regression testing is required for all maintenance types.",
-                    "options": [],
-                    "correct_answer": true
-                },
-                {
-                    "id": 5,
-                    "type": "mcq",
-                    "question": "What does regression testing reveal?",
-                    "options": [
-                        "New features",
-                        "Side effects",
-                        "Unused code",
-                        "Performance issues"
-                    ],
-                    "correct_answer": "Side effects"
-                },
-                {
-                    "id": 6,
-                    "type": "mcq",
-                    "question": "Why might a test fail after a change?",
-                    "options": [
-                        "Code improved",
-                        "Specs changed",
-                        "Test code perfect",
-                        "No new bugs"
-                    ],
-                    "correct_answer": "Specs changed"
-                },
-                {
-                    "id": 7,
-                    "type": "true_false",
-                    "question": "A regression bug in an existing feature is less critical than a bug in new functionality.",
-                    "options": [],
-                    "correct_answer": false
-                },
-                {
-                    "id": 8,
-                    "type": "mcq",
-                    "question": "What is a challenge of regression testing?",
-                    "options": [
-                        "Low execution time",
-                        "Small test suite",
-                        "High maintenance cost",
-                        "Simple test selection"
-                    ],
-                    "correct_answer": "High maintenance cost"
-                },
-                {
-                    "id": 9,
-                    "type": "true_false",
-                    "question": "Test suite size is proportional to change size in regression testing.",
-                    "options": [],
-                    "correct_answer": false
-                },
-                {
-                    "id": 10,
-                    "type": "mcq",
-                    "question": "What does test selection aim to achieve?",
-                    "options": [
-                        "Run all tests",
-                        "Select relevant tests",
-                        "Increase execution time",
-                        "Remove valid tests"
-                    ],
-                    "correct_answer": "Select relevant tests"
-                },
-                {
-                    "id": 11,
-                    "type": "true_false",
-                    "question": "Test prioritization is used when not all selected tests can be executed.",
-                    "options": [],
-                    "correct_answer": true
-                },
-                {
-                    "id": 12,
-                    "type": "mcq",
-                    "question": "Which is a criterion for test prioritization?",
-                    "options": [
-                        "Code complexity",
-                        "Test coverage",
-                        "Developer preference",
-                        "Bug frequency"
-                    ],
-                    "correct_answer": "Test coverage"
-                },
-                {
-                    "id": 13,
-                    "type": "true_false",
-                    "question": "Minimization reduces a test suite by removing redundant tests.",
-                    "options": [],
-                    "correct_answer": true
-                },
-                {
-                    "id": 14,
-                    "type": "mcq",
-                    "question": "What is a 'silent horror' in testing?",
-                    "options": [
-                        "Test fails incorrectly",
-                        "Test passes incorrectly",
-                        "Production code fails",
-                        "Test code is buggy"
-                    ],
-                    "correct_answer": "Test passes incorrectly"
-                },
-                {
-                    "id": 15,
-                    "type": "true_false",
-                    "question": "Test code is less likely to contain errors than production code.",
-                    "options": [],
-                    "correct_answer": false
-                }
-            ],
-            "user_id": "d818162b-ab40-4626-a2a6-0d92cefd3746"
-        }
-        
-        // Save the document ID from the response (whether real or hardcoded) so we can upload stats later
-        if (quizData.document_id) {
-             setUploadedDocumentId(quizData.document_id)
-        }
-
-        console.log("Quiz Generated (HARDCODED):", quizData)
-
-        // 3. Start Game with Audio + Questions
-        // Map backend questions to Game format if needed, but assuming they match broadly.
-        // Backend returns: { questions: [ { id, type, question, options, correct_answer } ... ] }
-        // We need to map this to QuestionData format expected by generateLevel.
-
-        const mappedQuestions = quizData.questions.map((q: any) => {
-            // Check type mapping
-            let qType = 'MCQ'
-            if (q.type === 'true_false') qType = 'TRUE_FALSE'
-
-            // Map Answers
-            let answers = []
-            if (qType === 'TRUE_FALSE') {
-                 // Backend: correct_answer is boolean true/false
-                 // Content: question
-                 answers = [
-                     { text: "F", isCorrect: q.correct_answer === false }, 
-                     { text: "T", isCorrect: q.correct_answer === true }
-                 ]
-            } else {
-                // MCQ
-                // Backend: options [], correct_answer (string matching one option)
-                answers = q.options.map((opt: string) => ({
-                    text: opt,
-                    isCorrect: opt === q.correct_answer
-                }))
-            }
-
-            return {
-                id: q.id || `q_${Math.random()}`,
-                type: qType,
-                content: {
-                    questionText: q.question,
-                    answers: answers
-                }
-            }
-        })
-        
-        await processAudioAndStartLevel(audioBuffer, mappedQuestions, difficulty)
-
-    } catch (error: any) {
-        console.error("Error setting up game:", error)
-        alert(`Error: ${error.message}`)
-        setLoading(false)
-    }
+             
+             // Map and Start Level directly here
+             const mappedQuestions = mapQuizQuestions(quizData.questions);
+            
+            await processAudioAndStartLevel(audioBuffer, mappedQuestions, difficulty as any);
+            
+    } 
+  } catch (error: any) {
+      console.error("Error setting up game:", error)
+      alert(`Error: ${error.message}`)
+      setLoading(false)
+  }
   }
 
   // Auto-load logic (Development shortcut - preserves old behavior if needed, or remove?)

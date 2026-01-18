@@ -665,7 +665,7 @@ function GameLoop() {
                   <button onClick={() => togglePause()} style={{ background: 'transparent', border: '1px solid white', color: 'white', padding: '10px 20px', fontSize: '1rem', cursor: 'pointer', marginBottom: '10px' }}>
                     RESUME
                   </button>
-                  <button onClick={() => window.location.reload()} style={{ background: 'transparent', border: '1px solid #ff0055', color: '#ff0055', padding: '10px 20px', fontSize: '1rem', cursor: 'pointer' }}>
+                  <button onClick={() => window.location.href = '/'} style={{ background: 'transparent', border: '1px solid #ff0055', color: '#ff0055', padding: '10px 20px', fontSize: '1rem', cursor: 'pointer' }}>
                     EXIT
                   </button>
               </div>

@@ -51,6 +51,7 @@ interface Document {
   accuracy: number;
   file_path: string; // Add file_path to interface
   file_type: string; // Add file_type to interface
+  topic?: string;
 }
 
 interface HistoryEntry {
@@ -107,7 +108,8 @@ export default function Profile() {
           created_at: new Date(doc.created_at).toLocaleDateString(),
           accuracy: 0, // Placeholder as it's not in the DB yet
           file_path: doc.file_path,
-          file_type: doc.file_type
+          file_type: doc.file_type,
+          topic: doc.topic
         }));
         setDocuments(mappedDocs);
       }
@@ -437,11 +439,16 @@ export default function Profile() {
                             </div>
                           ) : (
                             <>
-                              <h3 className="font-ui font-semibold text-foreground group-hover:text-neon-purple transition-colors">
+                              <h3 className="font-ui font-semibold text-foreground group-hover:text-neon-purple transition-colors flex items-center gap-2">
                                 {doc.name}
+                                {doc.topic && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-neon-cyan/20 text-neon-cyan border border-neon-cyan/30 uppercase tracking-wider">
+                                    {doc.topic}
+                                  </span>
+                                )}
                               </h3>
                               <p className="text-sm text-muted-foreground">
-                                {doc.questions} questions • {doc.created_at}
+                                {doc.created_at}
                               </p>
                             </>
                           )}
