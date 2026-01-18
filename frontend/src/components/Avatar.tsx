@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
@@ -8,7 +7,6 @@ export default function Avatar() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [text, setText] = useState('');
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isDancing, setIsDancing] = useState(false);
   const sceneRef = useRef<{
     scene: THREE.Scene;
     camera: THREE.PerspectiveCamera;
@@ -18,11 +16,8 @@ export default function Avatar() {
   } | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const elevenSocketRef = useRef<WebSocket | null>(null);
-  const avatarRef = useRef<THREE.Object3D | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
-  const danceActionRef = useRef<THREE.AnimationAction | null>(null);
   const fbxModelRef = useRef<THREE.Group | null>(null);
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -61,27 +56,53 @@ export default function Avatar() {
       animationId: null,
     };
 
-    const loader = new GLTFLoader();
-    loader.load('https://models.readyplayer.me/696c0b59b01cd8746d2eb787.glb', (gltf) => {
-      const avatar = gltf.scene;
-      scene.add(avatar);
-      avatarRef.current = avatar;
+    const fbxLoader = new FBXLoader();
+    fbxLoader.load('/avatar_dance.fbx', (fbx) => {
+      fbx.scale.setScalar(0.01);
+      fbx.position.set(0, 0, 0);
+      
+      fbx.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const mesh = child as THREE.Mesh;
+          if (mesh.material) {
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            materials.forEach((mat) => {
+              if (mat instanceof THREE.MeshStandardMaterial) {
+                mat.metalness = 0.2;
+                mat.roughness = 0.8;
+              }
+            });
+          }
+        }
+      });
+      
+      fbxModelRef.current = fbx;
+      scene.add(fbx);
 
-      const box = new THREE.Box3().setFromObject(avatar);
+      if (fbx.animations && fbx.animations.length > 0) {
+        const mixer = new THREE.AnimationMixer(fbx);
+        mixerRef.current = mixer;
+
+        const clip = fbx.animations[0];
+        const action = mixer.clipAction(clip);
+        action.setLoop(THREE.LoopRepeat, Infinity);
+        action.play();
+      }
+
+      const box = new THREE.Box3().setFromObject(fbx);
       const center = box.getCenter(new THREE.Vector3());
       const size = box.getSize(new THREE.Vector3());
       const maxDim = Math.max(size.x, size.y, size.z);
       const distance = maxDim * 2;
-      camera.position.set(center.x, center.y, center.z + distance);
-      camera.lookAt(center);
-      controls.target.copy(center);
+      camera.position.set(center.x, center.y + size.y * 0.3, center.z + distance);
+      camera.lookAt(center.x, center.y + size.y * 0.3, center.z);
+      controls.target.set(center.x, center.y + size.y * 0.3, center.z);
       controls.update();
     });
 
     const animate = () => {
       if (sceneRef.current) {
         sceneRef.current.controls?.update();
-        updateLipSync();
         if (mixerRef.current) {
           mixerRef.current.update(0.016);
         }
@@ -124,30 +145,6 @@ export default function Avatar() {
     return bytes.buffer;
   };
 
-  const updateLipSync = () => {
-    if (!analyserRef.current || !avatarRef.current) return;
-
-    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-    analyserRef.current.getByteFrequencyData(dataArray);
-
-    const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
-    const normalizedVolume = Math.min(average / 80, 1);
-
-    avatarRef.current.traverse((node: any) => {
-      if (node.isMesh && node.morphTargetInfluences && node.morphTargetDictionary) {
-        const mouthOpenIndex = node.morphTargetDictionary['mouthOpen'];
-        if (mouthOpenIndex !== undefined) {
-          node.morphTargetInfluences[mouthOpenIndex] = normalizedVolume;
-        }
-
-        const jawOpenIndex = node.morphTargetDictionary['jawOpen'];
-        if (jawOpenIndex !== undefined) {
-          node.morphTargetInfluences[jawOpenIndex] = normalizedVolume * 0.6;
-        }
-      }
-    });
-  };
-
   const speakText = async () => {
     if (!text.trim() || isSpeaking) return;
 
@@ -164,12 +161,6 @@ export default function Avatar() {
     
     if (audioContextRef.current.state === 'suspended') {
       await audioContextRef.current.resume();
-    }
-
-    if (!analyserRef.current) {
-      analyserRef.current = audioContextRef.current.createAnalyser();
-      analyserRef.current.fftSize = 256;
-      analyserRef.current.connect(audioContextRef.current.destination);
     }
 
     const voiceId = 'G3zrXA9moYrFCgwBAvxJ';
@@ -258,7 +249,7 @@ export default function Avatar() {
 
         const source = audioContextRef.current!.createBufferSource();
         source.buffer = audioBuffer;
-        source.connect(analyserRef.current!);
+        source.connect(audioContextRef.current!.destination);
         source.start();
 
         source.onended = () => {
@@ -280,68 +271,6 @@ export default function Avatar() {
       setIsSpeaking(false);
       elevenSocketRef.current = null;
     };
-  };
-
-  const playDance = () => {
-    if (isDancing || !sceneRef.current) return;
-
-    setIsDancing(true);
-
-    const fbxLoader = new FBXLoader();
-    fbxLoader.load('/hiphop_new.fbx', (fbx) => {
-      if (!sceneRef.current) return;
-
-      // Hide the RPM avatar
-      if (avatarRef.current) {
-        avatarRef.current.visible = false;
-      }
-
-      // Scale and position the FBX model
-      fbx.scale.setScalar(0.01);
-      fbx.position.set(0, 0, 0);
-      
-      fbxModelRef.current = fbx;
-      sceneRef.current.scene.add(fbx);
-
-      if (fbx.animations && fbx.animations.length > 0) {
-        const mixer = new THREE.AnimationMixer(fbx);
-        mixerRef.current = mixer;
-
-        const clip = fbx.animations[0];
-        const action = mixer.clipAction(clip);
-        action.setLoop(THREE.LoopRepeat, Infinity);
-        action.play();
-
-        danceActionRef.current = action;
-      }
-    }, undefined, (error) => {
-      console.error('Error loading FBX:', error);
-      setIsDancing(false);
-    });
-  };
-
-  const stopDance = () => {
-    if (danceActionRef.current) {
-      danceActionRef.current.stop();
-      danceActionRef.current = null;
-    }
-    
-    if (mixerRef.current) {
-      mixerRef.current = null;
-    }
-    
-    // Remove the FBX model from scene
-    if (fbxModelRef.current && sceneRef.current) {
-      sceneRef.current.scene.remove(fbxModelRef.current);
-      fbxModelRef.current = null;
-    }
-    
-    // Show the RPM avatar again
-    if (avatarRef.current) {
-      avatarRef.current.visible = true;
-    }
-    
-    setIsDancing(false);
   };
 
   return (
@@ -372,13 +301,6 @@ export default function Avatar() {
           className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
         >
           {isSpeaking ? 'Speaking...' : 'Speak'}
-        </button>
-        <button
-          onClick={isDancing ? stopDance : playDance}
-          disabled={!avatarRef.current}
-          className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed"
-        >
-          {isDancing ? 'Stop Dance' : 'Dance'}
         </button>
       </div>
     </div>
