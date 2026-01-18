@@ -521,10 +521,6 @@ function GamePage() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#000', color: '#fff', position: 'relative' }}>
-      <Link to="/" style={{ position: 'absolute', top: 20, left: 20, zIndex: 100, color: 'white', textDecoration: 'none' }}>
-        Back to Home
-      </Link>
-      
       {/* HandTracker - Always Visible (PiP) so user can set up */}
       <div style={{ 
           position: 'absolute', 

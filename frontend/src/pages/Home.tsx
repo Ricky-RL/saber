@@ -322,9 +322,6 @@ export default function Home() {
                 <h2 className="font-display text-3xl font-bold text-neon-cyan text-glow-cyan mb-2">
                   DAILY CHALLENGE
                 </h2>
-                <p className="text-muted-foreground font-ui">
-                  15 questions from your recent notes await
-                </p>
               </div>
               <div className="flex items-center gap-3 text-neon-pink">
                 <Target className="w-6 h-6" />

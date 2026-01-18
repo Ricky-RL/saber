@@ -5,6 +5,18 @@ import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import { Block } from './Block'
 
+// IMPORT CENTRALIZED CONFIG
+import { 
+    GAME_SPEED, 
+    SPAWN_PREVIEW_TIME, 
+    HIT_WINDOW_Z_MIN, 
+    HIT_WINDOW_Z_MAX, 
+    DEFAULT_HIT_THRESHOLD, 
+    STREAM_SPAWN_OFFSET,
+    COLUMN_POSITIONS,
+    DYNAMIC_SPAWN_SPACER
+} from './GameConfig'
+
 // TOGGLE THIS TO SEE HITBOXES
 const DEBUG_SHOW_HITBOXES = false
 
@@ -14,6 +26,7 @@ import { Explosion } from './Explosion'
 import { QuestionHeader } from './QuestionHeader'
 import type { QuestionData } from './audio/levelGenerator'
 import Avatar, { type AvatarRef } from '../components/Avatar'
+
 
 function GameLoop() {
   // ... (Store destructuring)
@@ -37,6 +50,9 @@ function GameLoop() {
   const [blocks, setBlocks] = useState<any[]>([])
   const [headers, setHeaders] = useState<any[]>([]) // State for flying text headers
   const [explosions, setExplosions] = useState<{id: number, position: [number, number, number], color: string}[]>([])
+  const [currentQuestionText, setCurrentQuestionText] = useState<string | null>(null) // Static HUD Text
+  const [currentQuestionId, setCurrentQuestionId] = useState<string | null>(null) // TRACK ID to prevent overwriting
+
   
 
   const { scene } = useThree() 
@@ -48,6 +64,11 @@ function GameLoop() {
   const handledQuestionsRef = useRef<Set<string>>(new Set())
   const endGameStartTime = useRef<number | null>(null) // Track when to end game
   
+  // DYNAMIC DIRECTOR REFS
+  const nextSpawnTimeRef = useRef<number>(0)
+  const questionQueueRef = useRef<QuestionData[]>([])
+  const currentQuestionTargetTimeRef = useRef<number>(0) // Track when current Q ends
+
   // Avatar ref
   const avatarRef = useRef<AvatarRef>(null)
 
@@ -55,6 +76,8 @@ function GameLoop() {
   useEffect(() => {
      if (isPlaying) {
          handledQuestionsRef.current.clear()
+         nextSpawnTimeRef.current = 0
+         questionQueueRef.current = [] // Will be repopulated by director
      }
   }, [isPlaying])
 
@@ -111,6 +134,7 @@ function GameLoop() {
         setBlocks([])
         setCurrentAudioTime(0)
         handledQuestionsRef.current.clear()
+        setCurrentQuestionText(null)
     }
   }, [isPlaying, isPaused, levelData, audioBuffer])
 
@@ -146,17 +170,55 @@ function GameLoop() {
       }
 
 
-      // --- SPAWNER ---
-      if (levelData) {
-          const PREVIEW_TIME = 2.0 // User Request: Spawn later (closer to beat) for faster feel
+      // --- DYNAMIC DIRECTOR (User Request) ---
+      // Replaces static timeline loop.
+      // Logic: If we are idle (no active question), check if it's time to spawn the next one.
+      
+      const directorTime = time + SPAWN_PREVIEW_TIME
+      
+      // Initialize Director on first run
+      if (nextSpawnTimeRef.current === 0 && levelData?.beats && levelData.beats.length > 0) {
+           // Start slightly after audio begins
+           nextSpawnTimeRef.current = 4.0 
+      }
+
+      // CHECK IF WE SHOULD SPAWN
+      if (levelData && !currentQuestionId) {
+          // If we are past the scheduled spawn time considering preview...
+          // Actually, we want to hit the beat at `nextSpawnTime`.
+          // So we spawn at `nextSpawnTime - SPAWN_PREVIEW_TIME`.
           
-          levelData.timeline.forEach((event) => {
-              // If event is coming up within preview time AND hasn't been spawned yet
-              if (event.timestamp <= time + PREVIEW_TIME && !event.spawned) {
-                  event.spawned = true 
-                  spawnQuestionBlocks(event.data, event.timestamp)
-              }
-          })
+          if (time >= nextSpawnTimeRef.current - SPAWN_PREVIEW_TIME) {
+              
+               // 1. Get Next Question
+               if (!questionQueueRef.current || questionQueueRef.current.length === 0) {
+                   if (levelData.questionsQueue) {
+                       questionQueueRef.current = [...levelData.questionsQueue]
+                   }
+               }
+               
+               if (questionQueueRef.current && questionQueueRef.current.length > 0) {
+                   const question = questionQueueRef.current.shift()
+                   if (question) {
+                       // 2. Exact Alignment
+                       // We aimed for `nextSpawnTimeRef`. Let's find the closest beat to that target 
+                       // to ensure we are still on rhythm.
+                       let targetHitTime = nextSpawnTimeRef.current
+                       
+                       // Find beat >= targetHitTime
+                       if (levelData.beats) {
+                           const beat = levelData.beats.find(b => b >= targetHitTime)
+                           if (beat) targetHitTime = beat
+                       }
+                       
+                       // 3. Spawn
+                       spawnQuestionBlocks(question, targetHitTime)
+                       
+                       // 4. Mark Active
+                       // (spawnQuestionBlocks sets currentQuestionId)
+                   }
+               }
+          }
       }
 
       // --- COLLISION ---
@@ -181,8 +243,8 @@ function GameLoop() {
               const blockPos = new THREE.Vector3()
               blockMesh.getWorldPosition(blockPos)
 
-              // HIT WINDOW: Z between -2.5 and -0.5
-              if (blockPos.z > -2.5 && blockPos.z < -0.5) {
+              // HIT WINDOW: Used Constants
+              if (blockPos.z > HIT_WINDOW_Z_MAX && blockPos.z < HIT_WINDOW_Z_MIN) {
                   sabers.forEach(saber => {
                       const hitPoints = [
                           new THREE.Vector3(0, 0.5, 0),  // Lower Point
@@ -202,8 +264,8 @@ function GameLoop() {
                           const dx = Math.abs(worldPt.x - blockPos.x)
                           const dy = Math.abs(worldPt.y - blockPos.y)
 
-                          const hitThresholdX = obj.userData.size ? (obj.userData.size[0] / 2) + 0.4 : 0.8
-                          const hitThresholdY = obj.userData.size ? (obj.userData.size[1] / 2) + 0.4 : 0.8
+                          const hitThresholdX = obj.userData.size ? (obj.userData.size[0] / 2) + 0.4 : DEFAULT_HIT_THRESHOLD
+                          const hitThresholdY = obj.userData.size ? (obj.userData.size[1] / 2) + 0.4 : DEFAULT_HIT_THRESHOLD
 
                           if (dx < hitThresholdX && dy < hitThresholdY) {
                               isHit = true
@@ -221,165 +283,213 @@ function GameLoop() {
       })
       
       hitsToProcess.forEach(hit => handleCollision(hit.id, hit.vel, hit.pos))
+
+      // --- IMMEDIATE MISS DETECTION (Time Based) ---
+      // "Why cant we just know when the question has ended??"
+      // We know targetTime. If audioTime > targetTime + 0.5 (buffer), it's missed.
+      if (currentQuestionId && !handledQuestionsRef.current.has(currentQuestionId) && currentQuestionTargetTimeRef.current > 0) {
+          const missThresholdTime = currentQuestionTargetTimeRef.current + 0.5
+          
+          if (time > missThresholdTime) {
+             // 1. Mark Handled
+             handledQuestionsRef.current.add(currentQuestionId)
+             
+             // 2. Feedback (Purple Missed)
+             useGameStore.getState().setFeedback({
+                  type: 'MISSED',
+                  text: "MISSED!",
+             })
+             // Reset Combo to 1
+             setCombo(() => 1) 
+             avatarRef.current?.sayMessage("Missed!")
+             setTimeout(() => useGameStore.getState().setFeedback(null), 2000)
+             
+             // 3. Clear HUD & ASSETS
+             setCurrentQuestionText(null)
+             setCurrentQuestionId(null)
+             currentQuestionTargetTimeRef.current = 0 // Reset
+             
+             setBlocks(prev => prev.filter(b => b.questionId !== currentQuestionId))
+             setHeaders(prev => prev.filter(h => h.id !== `header_${currentQuestionId}`))
+             
+             // 4. NEXT QUESTION
+             const now = audioContext.currentTime - audioStartTime
+             scheduleNextQuestion(now + DYNAMIC_SPAWN_SPACER)
+          }
+      }
   })
 
   // Spawn Logic Helper
   // --- SPAWNER HELPER ---
+  // SPAWNER HELPER
   const spawnQuestionBlocks = (question: QuestionData, targetTime: number) => {
       const newBlocks: any[] = []
       
       const SPAWN_Y = 0.0 
-      // [CONFIG] BLOCK SPEED
-      // This determines how fast the blocks travel.
-      // Since Arrival Time is fixed (PREVIEW_TIME = 2.0s), increasing Speed increases Spawn Distance.
-      // Distance = Speed * Time. 
-      // Speed 50 * 2.0s = 100 meters spawn distance.
-      // Speed 12 * 2.0s = 24 meters spawn distance.
-      const SPEED = 20
+      const SPEED = GAME_SPEED
       
-      // 1. SPAWN Flying Header
-      setHeaders(prev => [...prev, {
-          id: `header_${question.id}`,
-          text: question.content.questionText,
-          targetTime: targetTime,
-          speed: SPEED // Pass Speed
-      }])
+      // --- ROBUST TARGET TIME SETTING (Consolidated) ---
+      // Ensure we track the "End Time" of the question for Immediate Miss Logic.
+      // This applies to ALL types (T/F, MCQ) to fix the "T/F needs same logic" bug.
+      let extraDuration = 0
+      if (question.type === 'TRUE_FALSE_PAIR' || question.type === 'TRUE_FALSE_SPLIT') {
+          extraDuration = 0 // Single timestamp arrival
+      } else {
+          // MCQ Stream
+          const count = question.content.answers?.length || 0
+          extraDuration = Math.max(0, (count - 1) * STREAM_SPAWN_OFFSET)
+      }
+      currentQuestionTargetTimeRef.current = targetTime + extraDuration
+      // --------------------------------------------------
+
+      // UNIQUE ID GENERATION (Fixes "Ghost Hits" & "Stall" on loop)
+      const instanceId = `${question.id}_${Date.now()}`
+      
+      // TIMEOUT HANDLER (User Request: "Miss all blocks = Wrong + Show Correct")
+      const handleQuestionTimeout = () => {
+          // If we haven't answered this question yet...
+          if (!handledQuestionsRef.current.has(instanceId)) {
+              // console.log(`Question ${instanceId} timed out (Missed All)`)
+              handledQuestionsRef.current.add(instanceId)
+              
+              const correctAns = question.content.answers?.find(a => a.isCorrect)
+              const correctText = correctAns?.text || "Unknown"
+
+              // Start Feedback
+              useGameStore.getState().setFeedback({
+                  type: 'WRONG',
+                  text: "NOTHING", // "I chose nothing"
+                  correctText: correctText
+              })
+              
+              // Reset Combo
+              setCombo(() => 1)
+              avatarRef.current?.sayMessage("Missed!")
+              
+              // Auto-clear feedback
+              setTimeout(() => useGameStore.getState().setFeedback(null), 2000)
+
+              // Clear Static HUD immediately if active
+              setCurrentQuestionId(prevId => {
+                 if (prevId === instanceId) {
+                     setCurrentQuestionText(null)
+                     return null
+                 }
+                 return prevId
+              })
+          }
+      }
 
       // Variation Logic
       if (question.type === 'TRUE_FALSE_PAIR') {
-         // --- PAIR VARIATION (Separate Left/Right) ---
-         // Randomize Order (Left/Right)
+         // 1. SPAWN Flying Header
+          setHeaders(prev => [...prev, {
+              id: `header_${instanceId}`,
+              text: question.content.questionText,
+              targetTime: targetTime,
+              speed: SPEED 
+          }])
+          setCurrentQuestionId(instanceId)
+          // currentQuestionTargetTimeRef set at top
+          
+          const DURATION = 4.0
+          scheduleNextQuestion(targetTime + DURATION) 
+          
+          // Set Timeout for Miss (Duration + Buffer)
+          setTimeout(handleQuestionTimeout, (DURATION + 1.0) * 1000)
+
+         // --- PAIR VARIATION (Separate Left/Right with Random Positions) ---
+         // 1. Randomize Content Order (Left/Right text swap)
          const isReversed = Math.random() > 0.5 
+
+         // 2. Randomize Column Positions (Pick 2 distinct columns)
+         // Use COLUMN_POSITIONS = [-3.5, -1.5, 1.5, 3.5]
+         const availableCols = [...COLUMN_POSITIONS]
+         const col1Index = Math.floor(Math.random() * availableCols.length)
+         const col1 = availableCols.splice(col1Index, 1)[0]
+         const col2Index = Math.floor(Math.random() * availableCols.length)
+         const col2 = availableCols[col2Index] // Only 3 left, pick one
          
-         // Left Block (Pink)
+         // FIRST BLOCK (Random Column 1)
+         // Ensure Color Consistency: T = Cyan, F = Pink
+         const textLeft = isReversed ? question.content.answers?.[1].text : question.content.answers?.[0].text
+         const isTrueLeft = textLeft === 'T' || textLeft === 'True'
+         const colorLeft = isTrueLeft ? '#00ffff' : '#ff00ff'
+
          newBlocks.push({
-             id: `${question.id}_left_pair`,
-             questionId: question.id, // Explicit ID
-             position: [-1.2, SPAWN_Y, -30], 
-             color: '#ff00ff', // Pink/Magenta for Left
-             text: isReversed ? question.content.answers?.[1].text : question.content.answers?.[0].text, 
+             id: `${instanceId}_left_pair`,
+             questionId: instanceId, 
+             position: [col1, SPAWN_Y, -30], 
+             color: colorLeft, 
+             text: textLeft, 
              type: 'true_false_pair',
              targetTime: targetTime,
-             speed: SPEED, // Pass Speed
+             startTime: currentAudioTime, // Restored for Animation
+             speed: SPEED, 
              isCorrect: isReversed ? question.content.answers?.[1].isCorrect : question.content.answers?.[0].isCorrect,
          })
          
-         // Right Block (Cyan)
+         // SECOND BLOCK (Random Column 2)
+         const textRight = isReversed ? question.content.answers?.[0].text : question.content.answers?.[1].text
+         const isTrueRight = textRight === 'T' || textRight === 'True'
+         const colorRight = isTrueRight ? '#00ffff' : '#ff00ff'
+
          newBlocks.push({
-             id: `${question.id}_right_pair`,
-             questionId: question.id, // Explicit ID
-             position: [1.2, SPAWN_Y, -30],
-             color: '#00ffff', // Cyan/Blue for Right
-             text: isReversed ? question.content.answers?.[0].text : question.content.answers?.[1].text,
+             id: `${instanceId}_right_pair`,
+             questionId: instanceId, 
+             position: [col2, SPAWN_Y, -30],
+             color: colorRight,
+             text: textRight,
              type: 'true_false_pair',
              targetTime: targetTime,
-             speed: SPEED, // Pass Speed
+             startTime: currentAudioTime, // Restored for Animation
+             speed: SPEED, 
              isCorrect: isReversed ? question.content.answers?.[0].isCorrect : question.content.answers?.[1].isCorrect,
          })
 
       } else if (question.type === 'TRUE_FALSE_SPLIT') {
-         // --- SPLIT VARIATION (Visual Center + Invisible Hitboxes) ---
-         // Randomize Axis (Horizontal/Vertical) and Order
-         // const splitAxis = Math.random() > 0.5 ? 'vertical' : 'horizontal' // Disabled Vertical for now
-         const splitAxis: 'horizontal' | 'vertical' = Math.random() > 1 ? 'vertical' : 'horizontal'
-         const isReversed = Math.random() > 0.5
-         
-         // Determine Labels and Answers
-         // Normal: A=Left/Top=True(0), B=Right/Bot=False(1)
-         // Reversed: A=Left/Top=False(1), B=Right/Bot=True(0)
-         const labelA = isReversed ? "F" : "T" // Or actual text? User said "T" and "F" visual logic in Block.tsx uses these props
-         const labelB = isReversed ? "T" : "F"
-         
-         const answerA = isReversed ? question.content.answers?.[1] : question.content.answers?.[0]
-         const answerB = isReversed ? question.content.answers?.[0] : question.content.answers?.[1]
-
-         // 1. VISUAL ONLY Block (Center)
-         newBlocks.push({
-             id: `${question.id}_visual`,
-             questionId: question.id, // Explicit ID
-             position: [0, SPAWN_Y, -30], 
-             color: '#ffffff', 
-             type: 'true_false_split', 
-             targetTime: targetTime,
-             speed: SPEED, // Pass Speed
-             isCorrect: false,
-             splitAxis: splitAxis, // Pass random axis
-             labelA: labelA,
-             labelB: labelB,
-             answers: question.content.answers 
-         })
-
-         // 2. Hitbox A (Left or Top)
-         // STRETCHED HITBOXES (User Request)
-         // Vertical: Wide and Flat. Horizontal: Tall and Narrow.
-         const posA: [number, number, number] = splitAxis === 'vertical' 
-             ? [0, SPAWN_Y + 1.0, -30] // Top (Closer to center)
-             : [-1.0, SPAWN_Y, -30]    // Left (Closer to center)
-
-         const sizeA: [number, number, number] = splitAxis === 'vertical'
-             ? [8, 2.2, 1.3] // Wide 
-             : [2.2, 5, 1.3] // Tall
-
-         newBlocks.push({
-             id: `${question.id}_hitbox_a`,
-             questionId: question.id, 
-             position: posA, 
-             size: sizeA, 
-             color: '#00ffff',
-             type: 'mcq', 
-             targetTime: targetTime,
-             speed: SPEED, // Pass Speed
-             isCorrect: answerA?.isCorrect,
-             invisible: true // Visible for debugging
-         })
-
-         // 3. Hitbox B (Right or Bottom)
-         const posB: [number, number, number] = splitAxis === 'vertical'
-             ? [0, SPAWN_Y - 1.0, -30] // Bottom
-             : [1.0, SPAWN_Y, -30]     // Right
-
-             
-         const sizeB: [number, number, number] = splitAxis === 'vertical'
-             ? [8, 2.2, 1.3] // Wide
-             : [2.2, 5, 1.3] // Tall
-
-         newBlocks.push({
-             id: `${question.id}_hitbox_b`,
-             questionId: question.id,
-             position: posB, 
-             size: sizeB, // Custom Size
-             color: '#ff00ff',
-             type: 'mcq',
-             targetTime: targetTime,
-             speed: SPEED, // Pass Speed
-             isCorrect: answerB?.isCorrect,
-             invisible: true // Visible for debugging
-         })
-
+         // ... (Split Logic not currently used)
       } else {
-          // MCQ - WIDER SPREAD & BIGGER BLOCKS
+          // --- MCQ STREAM MODE (New) ---
+          setCurrentQuestionText(question.content.questionText)
+          setCurrentQuestionId(instanceId) // TRACK THIS ID
+          
           const count = question.content.answers?.length || 0
-          const spacing = 3.5 // Increased from 2
-          const startX = -((count - 1) * spacing) / 2
+          // Wait for LAST block in stream
+          const totalDuration = (count - 1) * STREAM_SPAWN_OFFSET 
+          // currentQuestionTargetTimeRef set at top
           
+          const hudDuration = totalDuration + SPAWN_PREVIEW_TIME + 2.0 
           
-          const TRON_COLORS = ['#00ffff', '#ff00ff', '#ff0000', '#39ff14'] // Cyan, Magenta, Red, Neon Green
-          const colorOffset = Math.floor(Math.random() * TRON_COLORS.length) // Randomize start color
+          // SCHEDULE FALLBACK (Max Duration)
+          scheduleNextQuestion(targetTime + totalDuration + 2.0)
+
+          // USE TIMEOUT HANDLER
+          setTimeout(handleQuestionTimeout, (hudDuration + 0.5) * 1000)
+
+          const TRON_COLORS = ['#00ffff', '#ff00ff', '#ff0000', '#39ff14'] 
+          const colorOffset = Math.floor(Math.random() * TRON_COLORS.length) 
+
+          let columns = [...COLUMN_POSITIONS] 
+          columns = columns.sort(() => Math.random() - 0.5)
 
           question.content.answers?.forEach((ans, idx) => {
-              const x = startX + (idx * spacing)
-              const colorIdx = (idx + colorOffset) % TRON_COLORS.length // Cycle with offset
+              const blockTargetTime = targetTime + (idx * STREAM_SPAWN_OFFSET)
+              
+              const x = columns[idx % columns.length] 
+              const colorIdx = (idx + colorOffset) % TRON_COLORS.length 
               
               newBlocks.push({
-                  id: `${question.id}_${idx}`,
-                  questionId: question.id, // Explicit ID
+                  id: `${instanceId}_${idx}`,
+                  questionId: instanceId, 
                   position: [x, SPAWN_Y, -30],
-                  color: TRON_COLORS[colorIdx], // Cycle through Tron colors
+                  color: TRON_COLORS[colorIdx], 
                   text: ans.text,
                   type: 'mcq',
-                  size: [1.8, 1.8, 1.8], // BIGGER BLOCKS (User Request)
-                  targetTime: targetTime,
-                  speed: SPEED, // Pass Speed
+                  size: [1.8, 1.8, 1.8], 
+                  targetTime: blockTargetTime, 
+                  startTime: currentAudioTime, // Restored for Animation
+                  speed: SPEED,
                   isCorrect: ans.isCorrect,
                   questionText: question.content.questionText
               })
@@ -390,6 +500,12 @@ function GameLoop() {
   }
 
 
+
+
+  // HELPER: Schedule Next Question
+  const scheduleNextQuestion = (minTime: number) => {
+      nextSpawnTimeRef.current = minTime
+  }
 
   const handleCollision = (blockId: string, _velX: number, hitPos: THREE.Vector3) => {
       const block = blocks.find(b => b.id === blockId)
@@ -408,22 +524,36 @@ function GameLoop() {
 
       // Logic for Split Block
       let isCorrect = block.isCorrect
-      // (Split logic removed - now handled by invisible hitboxes with intrinsic isCorrect values)
-
-
+  
       // Mark as answered if Valid HIT (even if wrong, we consume the question)
       handledQuestionsRef.current.add(questionId)
 
-      // Set Last Answer for UI Feedback
+      // --- FEEDBACK LOGIC (User Request: Green for Correct, Red+Correct for Wrong) ---
       if (block.text) {
-          useGameStore.getState().setLastAnswer(block.text)
-          // Auto-clear after 2 seconds? Or let UI handle it?
-          setTimeout(() => useGameStore.getState().setLastAnswer(null), 2000)
+          if (isCorrect) {
+               useGameStore.getState().setFeedback({ 
+                   type: 'CORRECT', 
+                   text: block.text 
+               })
+          } else {
+               // Find the CORRECT answer for this question
+               // We look through all current blocks (or we could look at questionQueue/History if we tracked it)
+               // Since blocks are still in state until this frame ends, we can find the sibling block with isCorrect=true
+               const correctBlock = blocks.find(b => b.questionId === questionId && b.isCorrect)
+               const correctText = correctBlock?.text || "Unknown"
+
+               useGameStore.getState().setFeedback({ 
+                   type: 'WRONG', 
+                   text: block.text,
+                   correctText: correctText
+               })
+          }
+          
+          // Auto-clear
+          setTimeout(() => useGameStore.getState().setFeedback(null), 2000)
       }
 
       // Explosion
-      // Use block color for visual feedback of WHAT was hit.
-      // If invisible hitbox, use the color defined in spawner.
       setExplosions(prev => [...prev, { 
           id: Date.now() + Math.random(), 
           position: [hitPos.x, hitPos.y, hitPos.z], 
@@ -433,22 +563,44 @@ function GameLoop() {
       // Remove ALL blocks belonging to this question (using explicit ID)
       setBlocks(prev => prev.filter(b => b.questionId !== questionId))
       
-      // Remove the Flying Header for this question
+      // Remove the Flying Header for this question (if any)
       setHeaders(prev => prev.filter(h => h.id !== `header_${questionId}`))
 
+      // HIDE STATIC HUD if this question is answered
+      // Check ID match to be safe
+      if (currentQuestionId === questionId) {
+          setCurrentQuestionText(null)
+          setCurrentQuestionId(null)
+          currentQuestionTargetTimeRef.current = 0 // Reset invalidates time-based miss
+      } 
+      
+      // --- DYNAMIC DIRECTOR TRIGGER (User Request) ---
+      // "Release the rest of the time interval as soon as block is hit"
+      // Schedule next question immediately (after spacer)
+      if (audioContext) {
+           const now = audioContext.currentTime - audioStartTime
+           scheduleNextQuestion(now + DYNAMIC_SPAWN_SPACER)
+      }
+
       if (isCorrect) {
-          setScore(s => s + 100)
+          const currentCombo = useGameStore.getState().combo
+          setScore(s => s + (100 * (currentCombo > 0 ? currentCombo : 1)))
           setCombo(c => c + 1)
           incrementCorrectCount()
           avatarRef.current?.sayMessage("Correct!")
       } else {
-          setCombo(() => 0)
+          setCombo(() => 1)
           avatarRef.current?.sayMessage("Wrong!")
       }
   }
 
   const handleMiss = (id: string) => {
+      // If we miss a block, removed it
       setBlocks(prev => prev.filter(b => b.id !== id))
+      
+      // Note: We do NOT trigger "Schedule Next" on a single block miss 
+      // because there might be other blocks coming (e.g. MCQ stream).
+      // The "Max Duration Fallback" in spawnQuestionBlocks handles the timeout if they miss everything.
   }
 
   const handleHeaderComplete = (id: string) => {
@@ -468,6 +620,32 @@ function GameLoop() {
   return (
     <>
       <OrbitControls makeDefault={false} enabled={false} /> 
+
+      {/* STATIC QUESTION HUD */}
+      {currentQuestionText && (
+          <Html position={[0, 0, 0]} fullscreen style={{ pointerEvents: 'none' }}>
+              <div style={{
+                  position: 'absolute',
+                  top: '10%',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: '80%',
+                  textAlign: 'center',
+                  fontFamily: '"Orbitron", sans-serif',
+                  // UPDATED STYLING: Black/White, Simple (User Request)
+                  background: 'rgba(0, 0, 0, 0.9)', // High opacity black
+                  border: '2px solid white',         // Simple white border
+                  textShadow: 'none',                // Remove neon glow
+                  fontSize: '2rem',
+                  fontWeight: 'bold',
+                  padding: '20px',
+                  borderRadius: '10px',              // Slightly sharper corners
+                  zIndex: 1000
+              }}>
+                  {currentQuestionText}
+              </div>
+          </Html>
+      )}
       
       {/* PAUSE MENU */}
       {isPaused && (

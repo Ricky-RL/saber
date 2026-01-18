@@ -5,7 +5,7 @@ import './UI.css'
 
 export function UI() {
   const { score, combo, isPlaying, isGameOver, currentQuestionText, startGame } = useGameStore()
-  const lastAnswer = useGameStore((state) => state.lastAnswer) // CALL HOOK HERE
+  const feedback = useGameStore((state) => state.feedback) // CALL HOOK HERE
 
   return (
     <div className="saber-ui">
@@ -23,30 +23,48 @@ export function UI() {
                 <h2 className="stat-value">x{combo}</h2>
                 <p className="stat-label">COMBO</p>
             </div>
-        </div>
 
-        {/* LAST ANSWER FEEDBACK */}
-        <AnimatePresence>
-            {lastAnswer && ( // USE VARIABLE HERE
-                <motion.div 
-                    initial={{ opacity: 0, scale: 0.5, x: -50 }}
-                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 1.5 }}
-                    className="answer-feedback"
-                    style={{ 
-                        position: 'absolute', 
-                        top: '20px', 
-                        left: '200px', // Right of Stats (Shifted right due to width of stats)
-                        color: '#00ffff',
-                        fontFamily: "'Orbitron', sans-serif", // Assume same font as checks
-                        fontSize: '2rem',
-                        textShadow: '0 0 10px cyan'
-                    }}
-                >
-                    {lastAnswer}
-                </motion.div>
-            )}
-        </AnimatePresence>
+            {/* LAST ANSWER FEEDBACK - Stacked Below Combo */}
+            <AnimatePresence>
+                {feedback && !isGameOver && ( 
+                    <motion.div 
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        className="answer-feedback"
+                        style={{ 
+                            marginTop: '0.5rem',
+                            textAlign: 'left',
+                            fontFamily: "'Orbitron', sans-serif",
+                            zIndex: 200,
+                            pointerEvents: 'none'
+                        }}
+                    >
+                        {feedback.type === 'CORRECT' ? (
+                           // CORRECT: Green Text
+                           <div style={{ color: '#00ff00', fontSize: '2rem', textShadow: '0 0 10px #00ff00' }}>
+                               CORRECT: {feedback.text}
+                           </div>
+                        ) : feedback.type === 'MISSED' ? (
+                           // MISSED: Purple Text (User Request)
+                           <div style={{ color: '#D000FF', fontSize: '2rem', textShadow: '0 0 10px #D000FF' }}>
+                               {feedback.text}
+                           </div>
+                        ) : (
+                           // WRONG: Red Selection + Green Correction
+                           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                               <div style={{ color: '#ff0000', fontSize: '1.8rem', textShadow: '0 0 10px #ff0000' }}>
+                                   YOU CHOSE: {feedback.text}
+                               </div>
+                               <div style={{ color: '#00ff00', fontSize: '1.5rem', textShadow: '0 0 8px #00ff00' }}>
+                                   ANSWER: {feedback.correctText}
+                               </div>
+                           </div>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div>
       </div>
 
       {/* Main Menu */}

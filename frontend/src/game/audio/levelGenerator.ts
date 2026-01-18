@@ -1,4 +1,4 @@
-import type { AudioAnalysisData } from './beatDetector';
+import type { AudioAnalysisData } from './beatDetector'; 
 
 // UPDATED TYPES (User Request: Variations + Bomb)
 export interface QuestionData {
@@ -11,7 +11,7 @@ export interface QuestionData {
         isCorrect: boolean;
     }[];
   };
-  // Legacy blocks structure (optional/unused by new generator but kept for compat if needed)
+  // Legacy blocks structure
   blocks?: any[]; 
 }
 
@@ -24,6 +24,8 @@ export interface LevelEvent {
 export interface GameLevelData {
     metadata: any;
     timeline: LevelEvent[];
+    beats?: number[]; // Added for Runtime Director
+    questionsQueue?: QuestionData[]; // Added for Runtime Director
 }
 
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
@@ -92,67 +94,38 @@ export const PLACEHOLDER_QUESTIONS: QuestionData[] = [
   }
 ];
 
+// IMPORT CENTRALIZED CONFIG
+import { 
+  STREAM_SPAWN_OFFSET, 
+  MCQ_QUESTION_BUFFER
+} from '../GameConfig'
+
 export function generateLevel(audioData: AudioAnalysisData, passedQuestions: QuestionData[] = [], difficulty: Difficulty = 'EASY'): GameLevelData {
+  
+  // 1. Prepare Questions
+  let questions = passedQuestions.length > 0 ? passedQuestions : PLACEHOLDER_QUESTIONS;
+  
+  // Randomize Questions
+  // We double the list to ensure we have enough for a long song
+  questions = [...questions, ...questions, ...questions]
+      .sort(() => Math.random() - 0.5)
+      .map(q => {
+          // FORCE T/F PAIR (User Request: Revert to Floating Pair)
+          if (q.type === 'TRUE_FALSE') {
+              return { ...q, type: 'TRUE_FALSE_PAIR' }
+          }
+          return q
+      });
+
   const levelData: GameLevelData = {
     metadata: {
       ...audioData.metadata || {},
       difficulty
     },
-    timeline: []
+    timeline: [], // Kept for legacy compatibility, but will be empty
+    beats: audioData.beats, // Pass beats for runtime director
+    questionsQueue: questions // Pass full queue
   };
-
-  // Use passed questions if available, otherwise fallback to placeholders (or empty)
-  let questions = passedQuestions.length > 0 ? passedQuestions : PLACEHOLDER_QUESTIONS;
-  
-  // Randomize Questions (Shuffle)
-  questions = [...questions].sort(() => Math.random() - 0.5);
-
-  let questionIndex = 0;
-  
-  // Determine beat interval based on difficulty
-  let beatInterval = 8;
-  if (difficulty === 'MEDIUM') beatInterval = 4; // User Request: Higher density (Every 4th beat)
-  if (difficulty === 'HARD') beatInterval = 2;
-
-  // LIMIT TO 60 SECONDS (User Request)
-  const MAX_DURATION = 60; 
-
-  // Count valid beats to avoid infinite loop
-  // const _validBeats = audioData.beats.filter(b => b >= 8.0 && b <= MAX_DURATION);
-
-  for (let i = 0; i < audioData.beats.length; i += beatInterval) {
-    const beatTime = audioData.beats[i];
-    
-    // Filter out beats < 2s (User Request: "2 seconds as the line")
-    if (beatTime < 2.0) continue;
-
-    // Strict cut-off
-    if (beatTime > MAX_DURATION) break; 
-    
-    // Get question (Looping logic)
-    // If we run out, reshuffle and start over? Or just simple modulo loop.
-    // Simple modulo loop for now to ensure all Questions are used before repeating.
-    const qIdx = questionIndex % questions.length;
-    const question = questions[qIdx];
-    
-    // Determine Type Variation for True/False
-    // Randomly choose between PAIR (Separate blocks) and SPLIT (Single block)
-    let finalType = question.type;
-    if (finalType === 'TRUE_FALSE') {
-        finalType = 'TRUE_FALSE_PAIR'; // User Request: Only Pair variation
-    }
-
-    // Clone data to avoid mutating original
-    const eventData = { ...question, type: finalType };
-
-    levelData.timeline.push({
-      timestamp: beatTime,
-      data: eventData as QuestionData, 
-      spawned: false
-    });
-
-    questionIndex++;
-  }
 
   return levelData;
 }

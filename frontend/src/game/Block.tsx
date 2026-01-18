@@ -3,6 +3,19 @@ import { useFrame } from '@react-three/fiber'
 import { Text, RoundedBox } from '@react-three/drei'
 import * as THREE from 'three'
 
+// --- BLOCK CONSTANTS ---
+
+// BLOCK_TARGET_Z: The Z-depth where the block crosses the "Beat Line".
+// -1.5 is just in front of the player (Visual target).
+const BLOCK_TARGET_Z = -1.5
+
+// BLOCK_MISS_Z_THRESHOLD: How far behind the player (positive Z) the block goes before being "missed".
+// +4 means it's well behind the camera.
+const BLOCK_MISS_Z_THRESHOLD = 4
+
+// BLOCK_DEFAULT_SIZE: Size of the block if not specified.
+const BLOCK_DEFAULT_SIZE: [number, number, number] = [1.3, 1.3, 1.3]
+
 interface BlockProps {
   id: string
   position: [number, number, number] 
@@ -51,7 +64,7 @@ export function Block({
   color, 
   text, 
   targetTime,
-  // startTime, // Unused
+  startTime, 
   audioTime,
   speed = 12, 
   onMiss,
@@ -61,7 +74,7 @@ export function Block({
   splitAxis = 'horizontal',
   labelA = 'T',
   labelB = 'F',
-  size = [1.3, 1.3, 1.3],
+  size = BLOCK_DEFAULT_SIZE,
   showHitbox = false,
   hitboxSize // New Prop
 }: BlockProps & { hitboxSize?: [number, number, number] }) {
@@ -75,17 +88,41 @@ export function Block({
     Math.random() * 0.2
   ], [])
 
-  const HIT_Z = -1.5 
 
   useFrame((state, delta) => {
     if (groupRef.current) {
         // Time Based Positioning
         const timeRemaining = targetTime - audioTime
-        const idealZ = HIT_Z - (timeRemaining * speed)
+        let idealZ = BLOCK_TARGET_Z - (timeRemaining * speed)
+
+        // --- STYLISTIC SPAWN ANIMATION (User Request) ---
+        // "Really fast then slow down" + "Noticeable"
+        // Increased duration to 0.3s and Offset to 60. Added Scale Pop.
+        const timeAlive = audioTime - startTime
+        
+        let scale = 1.0
+        
+        if (timeAlive < 0.3) {
+            // Decay from 0 to 1 over 0.3s
+            const progress = timeAlive / 0.3
+            // Inverse: 1 to 0
+            const decay = 1 - progress
+            // Quadratic Ease Out
+            const offset = (decay * decay) * 60
+            idealZ -= offset
+            
+            // Scale Animation: Pop from 0.1 to 1.0
+            // Ease Out: 1 - decay^2 ?? 
+            // Simple Linear Scale or Ease Out Back?
+            // Let's use simple ease out: moves fast to 1.
+            scale = 0.1 + (0.9 * (1 - decay * decay))
+        }
+
         groupRef.current.position.set(position[0], position[1], idealZ)
+        groupRef.current.scale.set(scale, scale, scale)
 
         // Miss Logic
-        if (idealZ > 4) { 
+        if (idealZ > BLOCK_MISS_Z_THRESHOLD) { 
            if (onMiss) onMiss(id)
         }
     }
