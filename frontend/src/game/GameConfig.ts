@@ -4,7 +4,7 @@
 // Controls how fast blocks move towards the player.
 // Higher = Faster blocks, but they spawn further away to keep timing consistent.
 // 20 is "Moderate/Fast". 
-export const GAME_SPEED = 20;
+export const GAME_SPEED = 35;
 
 // 2. SPAWN PREVIEW
 // How many seconds *before* the beat a block spawns.
