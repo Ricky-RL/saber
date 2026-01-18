@@ -385,7 +385,7 @@ export default function Home() {
                     </div>
                     <div>
                       <h3 className="font-display text-xl font-bold text-neon-cyan mb-1">EXPLORE</h3>
-                      <p className="text-muted-foreground text-sm">Discover & Play</p>
+                      <p className="text-muted-foreground text-sm">Discover & Play </p>
                     </div>
                   </div>
                 </motion.button>

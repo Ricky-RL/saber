@@ -349,9 +349,6 @@ export default function Extension() {
                                   }`}>
                                     {doc.name}
                                   </h3>
-                                  <p className="text-xs text-muted-foreground truncate">
-                                    {doc.questions} questions
-                                  </p>
                                 </div>
 
                                 <a 

@@ -141,8 +141,6 @@ export default function Explore() {
                             </span>
                             <span>•</span>
                             <span>{new Date(doc.created_at).toLocaleDateString()}</span>
-                             <span>•</span>
-                            <span>{doc.questions} Questions</span>
                         </div>
                     </div>
                 </div>
@@ -151,11 +149,12 @@ export default function Explore() {
                     <Link to="/game" state={{ mode: 'auto', documentId: doc.id }}>
                     <motion.button
                         data-testid={`button-play-${doc.id}`}
-                        className="px-4 py-2 rounded-lg bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan/20 transition-colors flex items-center gap-2 font-bold font-display"
+                        className="p-2 rounded-lg bg-neon-cyan/10 text-neon-cyan hover:bg-neon-cyan/20 transition-colors"
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
+                        title="Play"
                     >
-                        <Play className="w-4 h-4" /> PLAY
+                        <Play className="w-4 h-4" />
                     </motion.button>
                     </Link>
                 </div>
