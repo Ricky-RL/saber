@@ -413,7 +413,7 @@ export default function Home() {
                           {doc.name}
                         </h3>
                         <p className="text-sm text-muted-foreground">
-                          {doc.questions} questions • {doc.lastStudied}
+                          {doc.lastStudied}
                         </p>
                       </div>
                     </div>

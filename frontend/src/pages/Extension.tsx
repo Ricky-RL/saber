@@ -8,30 +8,89 @@ import {
   Play,
   Pause,
   RotateCcw,
-  Upload,
-  Gamepad2,
-  MessageCircle,
-  Mic,
-  MicOff,
   X,
+  FileText,
+  Check,
+  Bot,
 } from 'lucide-react';
+import { supabase } from '../supabaseClient';
+import { useAuth } from '../contexts/Auth';
+import LoginModal from '../components/LoginModal';
+
+interface Document {
+  id: string;
+  name: string;
+  questions: number;
+  created_at?: string;
+}
 
 export default function Extension() {
   const [activeTab, setActiveTab] = useState<'pomodoro' | 'recall'>('pomodoro');
   const [isRunning, setIsRunning] = useState(false);
   const [timeLeft, setTimeLeft] = useState(25 * 60);
+
   const [workDuration, setWorkDuration] = useState(25);
   const [breakDuration, setBreakDuration] = useState(5);
   const [isBreak, setIsBreak] = useState(false);
-  const [showChatbot, setShowChatbot] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; text: string }[]>([]);
-  const [currentTranscript, setCurrentTranscript] = useState('');
-  /* State for file upload checking */
-  const [hasFile, setHasFile] = useState(false);
+  
+  const { user } = useAuth();
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+
+  const toggleSelection = (docId: string) => {
+    setSelectedDocs(prev => 
+      prev.includes(docId) 
+        ? prev.filter(id => id !== docId) 
+        : [...prev, docId]
+    );
+  };
+
+  const handleStartAI = () => {
+    if (selectedDocs.length === 0) return;
+    console.log('Starting AI with documents:', selectedDocs);
+    // Future integration can go here
+  };
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    if (activeTab === 'recall' && user) {
+      fetchDocuments();
+    }
+  }, [activeTab, user]);
+
+  const fetchDocuments = async () => {
+    try {
+      setLoadingDocs(true);
+      
+      if (user) {
+        const { data, error } = await supabase
+          .from('documents')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(10); // Limit nicely for extension
+
+        if (error) throw error;
+        
+        if (data) {
+          setDocuments(data.map(doc => ({
+            id: doc.id,
+            name: doc.name,
+            questions: doc.questions || 0,
+            created_at: doc.created_at
+          })));
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
     if (isRunning && timeLeft > 0) {
       interval = setInterval(() => {
         setTimeLeft(prev => prev - 1);
@@ -55,26 +114,7 @@ export default function Extension() {
     setIsBreak(false);
   };
 
-  const toggleRecording = () => {
-    if (!isRecording) {
-      setIsRecording(true);
-      setTimeout(() => {
-        setCurrentTranscript("What is the main function of mitochondria in a cell?");
-        setTimeout(() => {
-          setIsRecording(false);
-          setChatMessages(prev => [
-            ...prev,
-            { role: 'user', text: "What is the main function of mitochondria in a cell?" },
-            { role: 'assistant', text: "The mitochondria is often called the 'powerhouse of the cell.' Its main function is to produce ATP (adenosine triphosphate) through cellular respiration. ATP is the primary energy currency that powers most cellular processes." }
-          ]);
-          setCurrentTranscript('');
-        }, 2000);
-      }, 1500);
-    } else {
-      setIsRecording(false);
-      setCurrentTranscript('');
-    }
-  };
+
 
   const progress = isBreak 
     ? ((breakDuration * 60 - timeLeft) / (breakDuration * 60)) * 100
@@ -89,7 +129,7 @@ export default function Extension() {
         {/* Header */}
         <div className="flex items-center justify-between mb-4 mt-2">
             <a 
-              href={import.meta.env.VITE_FRONTEND_URL || "http://localhost:8000"} 
+              href={import.meta.env.VITE_FRONTEND_URL || "http://localhost:5173"} 
               target="_blank" 
               rel="noopener noreferrer"
               className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
@@ -102,15 +142,6 @@ export default function Extension() {
                 <span className="text-neon-magenta">SABER</span>
               </span>
             </a>
-            <motion.button
-              data-testid="button-chatbot"
-              onClick={() => setShowChatbot(true)}
-              className="p-2 rounded-lg bg-neon-purple/20 text-neon-purple hover:bg-neon-purple/30 transition-colors"
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-            >
-              <MessageCircle className="w-5 h-5" />
-            </motion.button>
         </div>
 
         <motion.div
@@ -140,7 +171,7 @@ export default function Extension() {
               }`}
             >
               <BookOpen className="w-4 h-4" />
-              Active Recall
+              Study
             </button>
           </div>
 
@@ -261,162 +292,126 @@ export default function Extension() {
                 exit={{ opacity: 0, x: -20 }}
                 className="p-6"
               >
-                <div 
-                  className={`border-2 border-dashed rounded-xl p-8 text-center mb-6 transition-colors cursor-pointer ${
-                    hasFile 
-                      ? 'border-neon-cyan bg-neon-cyan/5' 
-                      : 'border-border hover:border-neon-magenta/50'
-                  }`}
-                  onClick={() => document.getElementById('file-upload')?.click()}
-                >
-                  <input 
-                    type="file" 
-                    id="file-upload" 
-                    className="hidden" 
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        setHasFile(true);
-                        console.log(e.target.files);
-                      }
-                    }} 
-                  />
-                  <Upload className={`w-10 h-10 mx-auto mb-3 ${hasFile ? 'text-neon-cyan' : 'text-muted-foreground'}`} />
-                  <p className={`font-ui text-sm ${hasFile ? 'text-neon-cyan font-bold' : 'text-muted-foreground'}`}>
-                    {hasFile ? 'File Uploaded!' : 'Drop your notes here or click to upload'}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    PDF, DOCX, TXT supported
-                  </p>
-                </div>
+                {!user ? (
+                   <div className="flex flex-col items-center justify-center h-[300px] text-center">
+                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-neon-purple/20 to-neon-pink/20 flex items-center justify-center mb-4">
+                        <BookOpen className="w-8 h-8 text-neon-pink" />
+                      </div>
+                      <h3 className="font-display font-bold text-lg mb-2">Login Required</h3>
+                      <p className="text-sm text-muted-foreground mb-6 max-w-[200px]">
+                        Sign in to access your documents and start studying.
+                      </p>
+                      <button
+                        onClick={() => setIsLoginModalOpen(true)}
+                        className="px-6 py-2 rounded-lg bg-white text-black font-ui font-medium hover:bg-gray-200 transition-colors"
+                      >
+                        Sign In
+                      </button>
+                   </div>
+                ) : (
+                  <div className="flex flex-col h-[420px]">
+                    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 mb-4">
+                      {loadingDocs ? (
+                        <div className="text-center py-10 text-muted-foreground">
+                          <p className="animate-pulse">Loading documents...</p>
+                        </div>
+                      ) : documents.length === 0 ? (
+                        <div className="text-center py-10 text-muted-foreground">
+                            <p>No documents found.</p>
+                            <p className="text-xs mt-2">Upload documents in the main app to see them here.</p>
+                        </div>
+                      ) : (
+                        documents.map((doc, index) => {
+                          const isSelected = selectedDocs.includes(doc.id);
+                          return (
+                            <motion.div
+                              key={doc.id}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.05 }}
+                              className={`glass-card rounded-xl p-4 border transition-all cursor-pointer group ${
+                                isSelected 
+                                  ? 'border-neon-cyan bg-neon-cyan/5' 
+                                  : 'border-white/10 hover:border-neon-magenta/50'
+                              }`}
+                              onClick={() => toggleSelection(doc.id)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                                  isSelected 
+                                    ? 'bg-neon-cyan border-neon-cyan' 
+                                    : 'border-muted-foreground group-hover:border-neon-magenta'
+                                }`}>
+                                  {isSelected && <Check className="w-3 h-3 text-black" />}
+                                </div>
 
-                {/* ... existing card code ... */}
+                                <div className="flex-1 min-w-0">
+                                  <h3 className={`font-ui font-semibold text-sm truncate transition-colors ${
+                                    isSelected ? 'text-neon-cyan' : 'text-foreground'
+                                  }`}>
+                                    {doc.name}
+                                  </h3>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    {doc.questions} questions
+                                  </p>
+                                </div>
 
-                <div className="space-y-3 mb-6">
-                  {/* ... */}
-                </div>
+                                <a 
+                                  href={`${import.meta.env.VITE_FRONTEND_URL || "http://localhost:5173"}/game?documentId=${doc.id}&mode=auto`}
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <motion.button
+                                    className="p-2 rounded-lg bg-neon-magenta/10 text-neon-magenta hover:bg-neon-magenta/20 transition-colors"
+                                    whileHover={{ scale: 1.1 }}
+                                    whileTap={{ scale: 0.9 }}
+                                    title="Play Single"
+                                  >
+                                    <Play className="w-4 h-4" />
+                                  </motion.button>
+                                </a>
+                              </div>
+                            </motion.div>
+                          );
+                        })
+                      )}
+                    </div>
 
-                <a 
-                  href={hasFile ? `${import.meta.env.VITE_FRONTEND_URL || "http://localhost:8000"}/game` : undefined}
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className={!hasFile ? "pointer-events-none cursor-not-allowed" : ""}
-                >
-                  <motion.button
-                    data-testid="button-start-game"
-                    disabled={!hasFile}
-                    className={`w-full py-4 rounded-xl font-display font-bold flex items-center justify-center gap-3 transition-all ${
-                      hasFile 
-                        ? 'bg-gradient-to-r from-neon-magenta to-neon-pink text-background' 
-                        : 'bg-muted text-muted-foreground cursor-not-allowed'
-                    }`}
-                    whileHover={hasFile ? { scale: 1.02 } : {}}
-                    whileTap={hasFile ? { scale: 0.98 } : {}}
-                  >
-                    <Gamepad2 className="w-5 h-5" />
-                    LAUNCH STUDYSABER
-                  </motion.button>
-                </a>
+                    <motion.button
+                      disabled={selectedDocs.length === 0}
+                      onClick={handleStartAI}
+                      className={`w-full py-3 rounded-xl font-display font-bold flex items-center justify-center gap-2 transition-all ${
+                        selectedDocs.length > 0
+                          ? 'bg-gradient-to-r from-neon-purple to-neon-pink text-white shadow-lg shadow-neon-purple/25'
+                          : 'bg-muted text-muted-foreground cursor-not-allowed'
+                      }`}
+                      whileHover={selectedDocs.length > 0 ? { scale: 1.02, filter: "brightness(1.1)" } : {}}
+                      whileTap={selectedDocs.length > 0 ? { scale: 0.98 } : {}}
+                    >
+                      <Bot className="w-5 h-5" />
+                      START AI ({selectedDocs.length})
+                    </motion.button>
+                     
+                    {selectedDocs.length > 0 && (
+                      <div className="mt-4 p-3 rounded-lg bg-black/50 text-xs font-mono break-all border border-red-500/30">
+                        <p className="text-red-400 font-bold mb-1">DELETE THIS LATER:</p>
+                        <p className="text-muted-foreground">{JSON.stringify(selectedDocs, null, 2)}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
         </motion.div>
       </div>
 
-      <AnimatePresence>
-        {showChatbot && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex items-end justify-center pb-4"
-          >
-            <div 
-              className="absolute inset-0 bg-background/60 backdrop-blur-sm"
-              onClick={() => setShowChatbot(false)}
-            />
-            
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 50 }}
-              className="relative w-full max-w-[350px] px-2"
-            >
-              <div className="glass-card rounded-3xl p-6 border border-neon-purple/50">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-neon-purple to-neon-pink flex items-center justify-center">
-                      <MessageCircle className="w-5 h-5 text-background" />
-                    </div>
-                    <div>
-                      <h3 className="font-display font-bold text-neon-purple">STUDY ASSISTANT</h3>
-                      <p className="text-xs text-muted-foreground">Voice-enabled AI helper</p>
-                    </div>
-                  </div>
-                  <motion.button
-                    onClick={() => setShowChatbot(false)}
-                    className="p-2 rounded-lg hover:bg-muted transition-colors"
-                    whileTap={{ scale: 0.9 }}
-                  >
-                    <X className="w-5 h-5 text-muted-foreground" />
-                  </motion.button>
-                </div>
 
-                <div className="max-h-64 overflow-y-auto space-y-3 mb-4">
-                  {chatMessages.map((msg, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`p-3 rounded-xl ${
-                        msg.role === 'user'
-                          ? 'bg-neon-cyan/10 ml-8 border border-neon-cyan/30'
-                          : 'bg-neon-purple/10 mr-8 border border-neon-purple/30'
-                      }`}
-                    >
-                      <p className="text-sm font-ui">{msg.text}</p>
-                    </motion.div>
-                  ))}
-                  
-                  {currentTranscript && (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="p-3 rounded-xl bg-neon-cyan/10 ml-8 border border-neon-cyan/30"
-                    >
-                      <p className="text-sm font-ui text-neon-cyan">{currentTranscript}</p>
-                      <span className="inline-block w-2 h-4 bg-neon-cyan animate-pulse ml-1" />
-                    </motion.div>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-center">
-                  <motion.button
-                    data-testid="button-voice-input"
-                    onClick={toggleRecording}
-                    className={`p-6 rounded-full transition-all ${
-                      isRecording
-                        ? 'bg-neon-pink text-background animate-pulse box-glow-pink'
-                        : 'bg-neon-purple/20 text-neon-purple hover:bg-neon-purple/30'
-                    }`}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                  >
-                    {isRecording ? (
-                      <MicOff className="w-8 h-8" />
-                    ) : (
-                      <Mic className="w-8 h-8" />
-                    )}
-                  </motion.button>
-                </div>
-                
-                <p className="text-center text-xs text-muted-foreground mt-3">
-                  {isRecording ? 'Listening... tap to stop' : 'Tap to start voice input'}
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <LoginModal 
+        isOpen={isLoginModalOpen} 
+        onClose={() => setIsLoginModalOpen(false)} 
+      />
     </div>
   );
 }

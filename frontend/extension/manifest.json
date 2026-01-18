@@ -17,5 +17,6 @@
   "side_panel": {
     "default_path": "extension/popup.html"
   },
-  "permissions": ["sidePanel", "storage"]
+  "permissions": ["sidePanel", "storage", "scripting"],
+  "host_permissions": ["http://localhost:5173/*"]
 }
