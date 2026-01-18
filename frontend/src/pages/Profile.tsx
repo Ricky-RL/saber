@@ -360,7 +360,7 @@ export default function Profile() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
           >
-            STORE ({userBalance})
+            STORE
           </motion.button>
         </div>
 
@@ -595,10 +595,20 @@ export default function Profile() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2 }}
-              className="mt-8"
+              transition={{ duration: 0.3 }}
             >
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Balance Display */}
+              <div className="flex justify-end mb-6">
+                <div className="glass-card px-6 py-3 rounded-xl flex items-center gap-3 border border-neon-yellow/30 bg-neon-yellow/5">
+                  <span className="text-neon-yellow font-display font-bold text-xl">{userBalance}</span>
+                  <div className="w-5 h-5 rounded-full bg-neon-yellow/20 flex items-center justify-center border border-neon-yellow">
+                    <span className="text-[10px] font-bold text-neon-yellow">©</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground uppercase tracking-wider font-ui">Credits</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {storeItems.map((item) => {
                     const isPurchased = purchasedItems.includes(item.id) || item.cost === 0;
                     

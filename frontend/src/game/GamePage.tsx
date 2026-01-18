@@ -10,7 +10,7 @@ import { useAuth } from '../contexts/Auth'
 import { supabase } from '../supabaseClient'
 
 function GamePage() {
-  const { setHandPositions, setLevelData, setAudioBuffer, isGameOver, levelData, correctCount, maxCombo, score, setEquippedItems } = useGameStore()
+  const { setHandPositions, setLevelData, setAudioBuffer, isGameOver, levelData, correctCount, maxCombo, score, setEquippedItems, webcamVisible, setWebcamVisible } = useGameStore()
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
@@ -40,14 +40,20 @@ function GamePage() {
         statsUploadedRef.current = true;
 
         // Calculate Accuracy
-        // Total questions is the number of events in timeline (assuming 1 event = 1 question)
-        const totalQuestions = levelData.timeline.length
         
+
+        const totalQuestions = levelData.timeline.length > 0 ? levelData.timeline.length : (levelData.questionsQueue?.length || 0);
+
         // Prevent division by zero
         // User Request: 0-1 range, 2 decimal points
-        const accuracy = totalQuestions > 0 
-            ? Number((correctCount / totalQuestions).toFixed(2))
-            : 0
+        // Accuracy should be percentage 0-100 for display? Or 0-1 float? 
+        // Screenshot shows "0%". Payload comment says "Float (e.g. 85.5)".
+        // If correctCount is e.g. 5 and total is 10. 5/10 = 0.5. toFixed(2) = "0.50". 
+        // Backend likely expects 0-100 if it's shown as percentage, OR frontend multiplies it.
+        // Let's assume 0-100 based on "e.g. 85.5" comment.
+
+        const accuracyRaw = totalQuestions > 0 ? (correctCount / totalQuestions) : 0;
+        const accuracy =accuracyRaw; // Convert 0.5 -> 50.00
 
         // Determine Document ID: Use location state OR the one we just uploaded
         const documentId = locationState?.documentId || uploadedDocumentId
@@ -247,6 +253,11 @@ function GamePage() {
         return
     }
     console.log('📄 Document uploaded:', file.name)
+
+    try {
+      const { setWebcamVisible } = useGameStore.getState()
+      setWebcamVisible(true) // Ensure webcam defaults to enabled on load/action if needed, or rely on persisted state
+    } catch {}
 
     setLoading(true)
     
@@ -584,20 +595,119 @@ function GamePage() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', background: '#000', color: '#fff', position: 'relative' }}>
+        <Link to="/" style={{ position: 'absolute', top: 20, left: 20, zIndex: 100, color: 'white', textDecoration: 'none' }}>
+        Back to Home
+      </Link>
+
       {/* HandTracker - Always Visible (PiP) so user can set up */}
-      <div style={{ 
+      
+      {/* Toggle Button for Webcam - Only visible on Upload Screen or if desired in game too? 
+          User said: "while the user is uploading the document there should be a slider that the user can click to then turn off the webcam"
+      */}
+      {!hasGenerated && (
+          <div style={{
+              position: 'absolute',
+              top: 270, // Below the webcam box (20 top + 240 height + 10 gap)
+              right: 20,
+              zIndex: 100,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              background: 'rgba(0,0,0,0.5)',
+              padding: '8px 12px',
+              borderRadius: '20px',
+              border: '1px solid #333'
+          }}>
+              <span style={{ fontSize: '0.8rem', color: '#aaa' }}>Webcam Overlay</span>
+              <div 
+                onClick={() => setWebcamVisible(!webcamVisible)}
+                style={{
+                    width: '40px',
+                    height: '20px',
+                    background: webcamVisible ? '#00ffff' : '#333',
+                    borderRadius: '10px',
+                    position: 'relative',
+                    cursor: 'pointer',
+                    transition: 'background 0.3s'
+                }}
+              >
+                  <div style={{
+                      width: '16px',
+                      height: '16px',
+                      background: 'white',
+                      borderRadius: '50%',
+                      position: 'absolute',
+                      top: '2px',
+                      left: webcamVisible ? '22px' : '2px',
+                      transition: 'left 0.3s',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                  }} />
+              </div>
+          </div>
+      )}
+
+      {webcamVisible && (
+        <div style={{ 
+            position: 'absolute', 
+            top: 20, 
+            right: 20, 
+            width: '320px', 
+            height: '240px', 
+            zIndex: 100,
+            border: '2px solid rgba(255, 255, 255, 0.5)',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            background: 'black',
+            boxShadow: '0 0 20px rgba(0,0,0,0.5)'
+        }}>
+            <HandTracker onHandsDetected={handleHandsDetected} />
+        </div>
+      )}
+
+      {/* Keep HandTracker Logic active even if visual is hidden? 
+          The user asked "toggle whether or not the webcam overlays in the ui". 
+          Usually this means hiding the PiP box. 
+          HOWEVER, the game needs hand tracking to function.
+          If we hide the HandTracker component, it unmounts and tracking stops.
+          
+          We should probably keep it mounted but hidden if we want tracking to continue (invisible mode).
+          BUT, user likely means "Disable it completely" or "Just hide the preview".
+          In this game, seeing your hands is crucial for calibration.
+          But if they want to turn it off, maybe they want to play with mouse/keyboard? (Not supported yet?)
+          
+          Re-reading: "toggle whether or not the webcam overlays in the ui. it should be on by default... turn off the webcam."
+          
+          If I unmount it, the camera stops. 
+          If I CSS hide it: <div style={{ ... display: webcamVisible ? 'block' : 'none' }}>
+          Then tracking continues in background.
+          
+          Let's assume "Overlays in UI" means visual visibility. 
+          If tracking is REQUIRED for gameplay, hiding it completely (display: none) allows gameplay but removes feedback.
+          
+          If user means "Disable Camera permissions/stream", then we must unmount.
+          But then game won't work unless there's a fallback input method.
+          
+          Assuming Visual Toggle for now: changing `webcamVisible && (...)` to CSS toggle.
+      */}
+      
+       <div style={{ 
           position: 'absolute', 
           top: 20, 
           right: 20, 
           width: '320px', 
           height: '240px', 
           zIndex: 100,
-          border: '2px solid rgba(255, 255, 255, 0.5)',
+          border: webcamVisible ? '2px solid rgba(255, 255, 255, 0.5)' : 'none',
           borderRadius: '12px',
           overflow: 'hidden',
           background: 'black',
-          boxShadow: '0 0 20px rgba(0,0,0,0.5)'
+          boxShadow: webcamVisible ? '0 0 20px rgba(0,0,0,0.5)' : 'none',
+          // Visibility Toggle:
+          opacity: webcamVisible ? 1 : 0, 
+          pointerEvents: webcamVisible ? 'auto' : 'none',
+          transition: 'opacity 0.3s'
       }}>
+          {/* Always render HandTracker to keep Logic alive, just hide container */}
           <HandTracker onHandsDetected={handleHandsDetected} />
       </div>
 

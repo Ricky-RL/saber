@@ -128,11 +128,22 @@ def get_user_activity(user_id: str):
         # Approximate questions from games * (avg questions per game, say 10)
         # This is a heuristic if we don't store exact question count per session.
         estimated_questions = len(games) * 15 
+        
+        # Check if accuracy is already in percentage format (>1) or ratio (0-1)
+        # Based on GamePage change, we are now sending 0-100.
+        # However, old data might be 0-1.
+        # But `round(avg_acc * 100)` implies we expected ratio.
+        # Since I changed the frontend to send 0-100, checking if avg > 1 is a good heuristic.
+        
+        final_avg_acc = avg_acc
+        if avg_acc <= 1.0 and avg_acc > 0:
+             # Mixed data or old data ratio format
+             final_avg_acc = avg_acc * 100
 
         return {
             "daily_activity": daily_activity,
             "total_questions": estimated_questions, 
-            "average_accuracy": round(avg_acc * 100), # Convert 0.85 -> 85
+            "average_accuracy": round(final_avg_acc), 
             "best_combo": max_streak
         }
 

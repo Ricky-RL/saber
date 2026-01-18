@@ -48,13 +48,21 @@ export interface GameState {
   
   // Feedback
   feedback: { type: 'CORRECT' | 'WRONG' | 'MISSED', text: string, correctText?: string } | null
-  setFeedback: (feedback: { type: 'CORRECT' | 'WRONG' | 'MISSED', text: string, correctText?: string } | null) => void
+  setFeedback: (fb: { type: 'CORRECT' | 'WRONG' | 'MISSED', text: string, correctText?: string } | null) => void
+
+  // Store Items
+  equippedItems: any
+  setEquippedItems: (items: any) => void
+
+  // Settings
+  webcamVisible: boolean
+  setWebcamVisible: (visible: boolean) => void
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
   score: 0,
-  combo: 1,
-  maxCombo: 1,
+  combo: 0,
+  maxCombo: 0,
   isPlaying: false,
   isGameOver: false,
   isPaused: false,
@@ -69,20 +77,6 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setLevelData: (data) => set({ levelData: data }),
   setAudioBuffer: (buffer) => set({ audioBuffer: buffer }),
-  setAudioContext: (ctx, source, startTime) => set({ audioContext: ctx, audioSource: source, audioStartTime: startTime }),
-  setCurrentQuestionText: (text) => set({ currentQuestionText: text }),
-  
-  feedback: null,
-  setFeedback: (fb) => set({ feedback: fb }),
-
-  setPaused: (paused) => set({ isPaused: paused }),
-  togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
-  incrementCorrectCount: () => set((state) => ({ correctCount: state.correctCount + 1 })),
-
-  // Hand Tracking State
-  leftHandPos: { x: 0, y: 0, angle: 0 } as { x: number, y: number, angle: number } | null,
-  rightHandPos: { x: 0, y: 0, angle: 0 } as { x: number, y: number, angle: number } | null,
-  setHandPositions: (left, right) => set({ leftHandPos: left, rightHandPos: right }),
 
   setScore: (fn) => set((state) => ({ score: fn(state.score) })),
   setCombo: (fn) => {
@@ -103,8 +97,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         }
         return { 
           score: 0, 
-          combo: 1, // Start Combo at 1 per user request
-          maxCombo: 1, 
+          combo: 0, 
+          maxCombo: 0, 
           correctCount: 0,
           isPlaying: true, 
           isGameOver: false,
@@ -127,14 +121,21 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   setAudioContext: (ctx, source, startTime) => set({ audioContext: ctx, audioSource: source, audioStartTime: startTime }),
   setCurrentQuestionText: (text) => set({ currentQuestionText: text }),
+  
+  feedback: null,
+  setFeedback: (fb) => set({ feedback: fb }),
 
   equippedItems: {},
   setEquippedItems: (items) => set({ equippedItems: items }),
 
-  lastAnswer: null,
-  setLastAnswer: (ans) => set({ lastAnswer: ans }),
-
   setPaused: (paused) => set({ isPaused: paused }),
   togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
   incrementCorrectCount: () => set((state) => ({ correctCount: state.correctCount + 1 })),
+
+  // Settings
+  webcamVisible: localStorage.getItem('saber_webcamVisible') === 'false' ? false : true, // Default true
+  setWebcamVisible: (visible) => {
+      localStorage.setItem('saber_webcamVisible', String(visible))
+      set({ webcamVisible: visible })
+  }
 }))
