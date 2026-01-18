@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/Auth';
 import { supabase } from '../supabaseClient';
 import UploadModal from '../components/UploadModal';
 import PreviewModal from '../components/PreviewModal';
+import AvatarLipsyncView from '../components/AvatarLipsyncView';
 import { 
   Zap, 
   FileText, 
@@ -21,8 +22,10 @@ import {
   Clock,
   LogOut,
   Eye,
-  Gift
+  Gift,
+  Phone
 } from 'lucide-react';
+import { base } from 'framer-motion/client';
 
 // Helper for relative time
 function timeAgo(dateString: string) {
@@ -77,10 +80,13 @@ export default function Profile() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const [callingDoc, setCallingDoc] = useState<Document | null>(null);
+  const [agentId, setAgentId] = useState<string | null>(null);
   const [storeItems, setStoreItems] = useState<any[]>([]);
   const [userBalance, setUserBalance] = useState(0);
   const [purchasedItems, setPurchasedItems] = useState<string[]>([]);
   const [equippedItems, setEquippedItems] = useState<any>({});
+  const avatarContainerRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
     if (user) {
@@ -252,6 +258,23 @@ export default function Profile() {
     navigate('/');
   };
 
+  const handleCallClick = async (doc: Document) => {
+    if (!user?.id) return;
+    
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/get-agent/${user.id}/${doc.id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch agent ID');
+      }
+      const data = await response.json();
+      setAgentId(data.agent_id);
+      setCallingDoc(doc);
+    } catch (error) {
+      console.error('Error fetching agent ID:', error);
+      alert('Failed to load agent. Please try again.');
+    }
+  };
+
   // Calculate stats from history
   const bestScore = history.reduce((max, curr) => Math.max(max, curr.score), 0);
   const avgAccuracy = history.length > 0
@@ -280,6 +303,55 @@ export default function Profile() {
             onClose={() => setPreviewDoc(null)}
             document={previewDoc}
           />
+        )}
+
+        {callingDoc && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md backdrop-saturate-150"
+            onClick={() => {
+              setCallingDoc(null);
+              setAgentId(null);
+            }}
+          >
+            <div
+              className="relative w-[min(1100px,92vw)] h-[min(80vh,760px)] rounded-3xl border border-white/15 bg-gradient-to-br from-neutral-900/90 via-black/90 to-neutral-950/95 shadow-[0_40px_120px_rgba(0,0,0,0.65)] ring-1 ring-white/10 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_55%)]" />
+              <button
+                onClick={() => {
+                  setCallingDoc(null);
+                  setAgentId(null);
+                }}
+                className="absolute top-4 right-4 z-10 p-2 rounded-full border border-white/10 bg-black/40 hover:bg-white/10 transition-colors text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <div className="relative h-full w-full p-5 md:p-7 flex flex-col gap-4">
+                <div className="relative flex-1 rounded-2xl border border-white/10 bg-transparent overflow-hidden min-h-[320px]">
+                  <div
+                    ref={avatarContainerRef}
+                    className="absolute inset-0 bg-transparent"
+                  />
+                  <AvatarLipsyncView key={callingDoc.id} containerRef={avatarContainerRef} />
+                  <div className="absolute bottom-4 left-4 rounded-full border border-white/10 bg-black/60 px-3 py-1 text-xs uppercase tracking-widest text-white/70">
+                    Live Avatar
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+                  {agentId && (
+                    <elevenlabs-convai 
+                      agent-id={agentId}
+                      variant="tiny"
+                      avatar-orb-color-1="#6366f1" // Orb gradient color 1: indigo-500
+                      avatar-orb-color-2="#a21caf" // Orb gradient color 2: purple-800
+                      style-base-color="#6366f1"
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Header */}
@@ -376,36 +448,37 @@ export default function Profile() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="flex items-center justify-between mb-6">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <input
-                    data-testid="input-search"
-                    type="text"
-                    placeholder="Search documents..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 rounded-xl bg-card border border-border focus:border-neon-cyan focus:ring-1 focus:ring-neon-cyan outline-none font-ui transition-all"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {filteredDocs.length === 0 && (
-                  <div className="text-center py-10 text-muted-foreground">
-                    <p>No documents found. Upload one to get started!</p>
+              <div className="glass-card rounded-2xl border border-white/10 bg-gradient-to-b from-white/5 via-transparent to-transparent p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                    <input
+                      data-testid="input-search"
+                      type="text"
+                      placeholder="Search documents..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-12 pr-4 py-3 rounded-xl bg-black/40 border border-white/10 focus:border-neon-cyan focus:ring-1 focus:ring-neon-cyan outline-none font-ui transition-all"
+                    />
                   </div>
-                )}
-                {filteredDocs.map((doc, index) => (
-                  <motion.div
-                    key={doc.id}
-                    data-testid={`doc-row-${doc.id}`}
-                    className="glass-card rounded-xl p-5 hover:border-neon-purple/50 transition-all group"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.05 * index }}
-                  >
-                    <div className="flex items-center justify-between">
+                </div>
+
+                <div className="space-y-3">
+                  {filteredDocs.length === 0 && (
+                    <div className="text-center py-10 text-muted-foreground">
+                      <p>No documents found. Upload one to get started!</p>
+                    </div>
+                  )}
+                  {filteredDocs.map((doc, index) => (
+                    <motion.div
+                      key={doc.id}
+                      data-testid={`doc-row-${doc.id}`}
+                      className="glass-card rounded-xl p-5 border border-white/10 hover:border-neon-purple/50 hover:shadow-[0_12px_40px_rgba(168,85,247,0.15)] transition-all group"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.05 * index }}
+                    >
+                      <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4 flex-1">
                         <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-neon-purple/30 to-neon-pink/30 flex items-center justify-center">
                           <FileText className="w-6 h-6 text-neon-purple" />
@@ -470,6 +543,16 @@ export default function Profile() {
                           </motion.button>
 
                           <motion.button
+                            onClick={() => handleCallClick(doc)}
+                            className="p-2 rounded-lg text-muted-foreground hover:text-green-400 hover:bg-green-400/10 transition-colors"
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            title="Call Avatar"
+                          >
+                            <Phone className="w-4 h-4" />
+                          </motion.button>
+
+                          <motion.button
                             data-testid={`button-edit-${doc.id}`}
                             onClick={() => startEdit(doc.id, doc.name)}
                             className="p-2 rounded-lg text-muted-foreground hover:text-neon-cyan hover:bg-neon-cyan/10 transition-colors"
@@ -501,9 +584,10 @@ export default function Profile() {
                           </Link>
                         </div>
                       </div>
-                    </div>
-                  </motion.div>
-                ))}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
               </div>
             </motion.div>
           )}

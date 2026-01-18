@@ -41,32 +41,33 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }: Uploa
     const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
     try {
-      // Upload document only - no quiz generation
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('user_id', user.id);
-      if (docTopic.trim()) {
-        formData.append('topic', docTopic.trim());
-      }
+      // 1. Upload file to Supabase Storage
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${user.id}/${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
 
-      console.log("🚀 Uploading Document...");
-      const uploadRes = await fetch(`${API_URL}/document`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        },
-        body: formData
-      });
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, selectedFile);
 
-      if (!uploadRes.ok) {
-        const err = await uploadRes.json();
-        throw new Error(err.detail || 'Upload failed');
-      }
+      if (uploadError) throw uploadError;
 
-      const uploadData = await uploadRes.json();
-      console.log("✅ Document Uploaded:", uploadData);
+      // 2. Insert record into documents table
+      const { error: dbError } = await supabase
+        .from('documents')
+        .insert({
+          user_id: user.id,
+          name: docName.trim(),
+          topic: docTopic.trim() || null, // Add topic
+          file_path: filePath,
+          file_type: selectedFile.type,
+          file_size: selectedFile.size,
+          processed: false,
+          questions: 0
+        });
 
-      // Just close and refresh - no quiz generation
+      if (dbError) throw dbError;
+
       onUploadComplete();
       onClose();
       setSelectedFile(null);

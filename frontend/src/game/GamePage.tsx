@@ -504,12 +504,50 @@ function GamePage() {
              docId = uploadData.id;
              setUploadedDocumentId(docId);
 
+             // Get session for both agent creation and quiz generation
+             const session = await supabase.auth.getSession();
+
+             // Create Agent via Backend with correct Doc ID
+             try {
+                 console.log(`Creating agent for document ${docId}...`);
+                 const agentFormData = new FormData();
+                 agentFormData.append('user_id', user.id);
+                 
+                 const agentResponse = await fetch(`${API_URL}/create-agent/${docId}`, {
+                     method: 'POST',
+                     headers: {
+                        'Authorization': `Bearer ${session.data.session?.access_token || ''}`
+                     },
+                     body: agentFormData
+                 });
+
+                 if (!agentResponse.ok) {
+                     const errorText = await agentResponse.text();
+                     let errorDetail = "Agent creation failed";
+                     try {
+                         const err = JSON.parse(errorText);
+                         errorDetail = err.detail || err.message || errorText;
+                     } catch {
+                         errorDetail = errorText || `HTTP ${agentResponse.status}: ${agentResponse.statusText}`;
+                     }
+                     console.error("Agent creation failed:", errorDetail);
+                     console.error("Response status:", agentResponse.status);
+                 } else {
+                     const agentData = await agentResponse.json();
+                     console.log("Agent created successfully:", agentData);
+                 }
+             } catch (agentError: any) {
+                 console.error("Error creating agent:", agentError);
+                 console.error("Error message:", agentError.message);
+                 console.error("Error stack:", agentError.stack);
+             }
+
              // Generate Quiz via Backend
              console.log("🧠 Generating Quiz...");
              const quizRes = await fetch(`${API_URL}/generate-quiz/${docId}`, {
                  method: 'POST',
                  headers: {
-                    'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+                    'Authorization': `Bearer ${session.data.session?.access_token}`
                  }
              });
 
@@ -532,17 +570,6 @@ function GamePage() {
                       body: JSON.stringify({ topic: quizData.genre })
                   });
              }
-             
-             // Use REAL generated data
-             // We need to map it to the format expected by processAudioAndStartLevel
-             // But first, let's skip the hardcoded part below
-             
-             /* 
-                We will use a flag or return here to bypass the hardcoded block 
-                that follows in the original code. 
-                However, the original code had "HARDCODED DATA (REMOVE THIS...)" 
-                I should replace that section too.
-             */
              
              // Map and Start Level directly here
              const mappedQuestions = mapQuizQuestions(quizData.questions);

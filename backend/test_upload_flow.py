@@ -1,13 +1,10 @@
 """
 Test script that:
 1. Uploads a PDF to Supabase storage
-2. Generates a quiz using the /generate-quiz endpoint
-3. Creates an agent using the /create-agent endpoint (requires access_token)
+2. Generates a quiz using the /generate-quiz/{document_id} endpoint
+3. Creates an agent using the /create-agent/{document_id} endpoint
 
-Usage: python test_upload_flow.py <path_to_pdf> <user_id> [access_token]
-
-Note: access_token is the JWT from a logged-in Supabase session (not the publishable key).
-      If not provided, step 3 (create agent) will be skipped.
+Usage: python test_upload_flow.py <path_to_pdf> <user_id>
 """
 
 import sys
@@ -34,7 +31,7 @@ def upload_to_supabase(pdf_path: str, user_id: str) -> dict:
     doc_name = file_name.rsplit(".", 1)[0]
     result = supabase.table("documents").insert({
         "user_id": user_id,
-        "name": doc_name,
+        "name": doc_name + f"_{random.random()}",
         "file_path": storage_path,
         "file_type": "application/pdf",
         "file_size": len(file_content),
@@ -45,12 +42,9 @@ def upload_to_supabase(pdf_path: str, user_id: str) -> dict:
     return result.data[0]
 
 
-def generate_quiz(pdf_path: str, user_id: str) -> dict:
-    """Call /generate-quiz endpoint."""
-    with open(pdf_path, "rb") as f:
-        files = {"file": ("document.pdf", f, "application/pdf")}
-        data = {"user_id": user_id}
-        response = requests.post(f"{BASE_URL}/generate-quiz", files=files, data=data)
+def generate_quiz(document_id: str) -> dict:
+    """Call /generate-quiz/{document_id} endpoint."""
+    response = requests.post(f"{BASE_URL}/generate-quiz/{document_id}")
     
     if not response.ok:
         print(f"Error {response.status_code}: {response.text}")
@@ -58,13 +52,10 @@ def generate_quiz(pdf_path: str, user_id: str) -> dict:
     return response.json()
 
 
-def create_agent(pdf_path: str, document_id: str, user_id: str, access_token: str) -> dict:
-    """Call /create-agent endpoint."""
-    with open(pdf_path, "rb") as f:
-        files = {"file": ("document.pdf", f, "application/pdf")}
-        data = {"document_id": document_id, "user_id": user_id}
-        # headers = {"Authorization": f"Bearer {access_token}"}
-        response = requests.post(f"{BASE_URL}/create-agent", files=files, data=data)
+def create_agent(document_id: str, user_id: str) -> dict:
+    """Call /create-agent/{document_id} endpoint."""
+    data = {"user_id": user_id}
+    response = requests.post(f"{BASE_URL}/create-agent/{document_id}", data=data)
     
     if not response.ok:
         print(f"Error {response.status_code}: {response.text}")
@@ -79,14 +70,13 @@ def is_valid_uuid(val: str) -> bool:
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: python test_upload_flow.py <path_to_pdf> <user_id> [access_token]")
+        print("Usage: python test_upload_flow.py <path_to_pdf> <user_id>")
         print("\nuser_id must be a UUID from Supabase Auth > Users")
         print("Example: python test_upload_flow.py doc.pdf a1b2c3d4-e5f6-7890-abcd-ef1234567890")
         sys.exit(1)
     
     pdf_path = sys.argv[1]
     user_id = sys.argv[2]
-    access_token = sys.argv[3] if len(sys.argv) > 3 else None
     
     if not is_valid_uuid(user_id):
         print(f"Error: '{user_id}' is not a valid UUID")
@@ -103,16 +93,13 @@ def main():
     
     # 2. Generate quiz
     print("\n2. Generating quiz...")
-    quiz = generate_quiz(pdf_path, user_id)
+    quiz = generate_quiz(doc["id"])
     print(f"Quiz generated: {quiz}")
     
-    # 3. Create agent (requires access_token)
-    if access_token or 1:
-        print("\n3. Creating agent...")
-        agent = create_agent(pdf_path, doc["id"], user_id, access_token)
-        print(f"Agent created: {agent}")
-    else:
-        print("\n3. Skipping create agent (no access_token provided)")
+    # 3. Create agent
+    print("\n3. Creating agent...")
+    agent = create_agent(doc["id"], user_id)
+    print(f"Agent created: {agent}")
     
     print("\nDone!")
 
