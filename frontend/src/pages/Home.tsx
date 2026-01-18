@@ -1,9 +1,10 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/Auth';
 import { supabase } from '../supabaseClient'; 
 import LoginModal from '../components/LoginModal';
+import AvatarLipsyncView from '../components/AvatarLipsyncView';
 import { 
   Zap, 
   FileText, 
@@ -14,7 +15,9 @@ import {
   Clock,
   User,
   Trophy,
-  Search
+  Search,
+  Phone,
+  X
 } from 'lucide-react';
 
 /*
@@ -85,10 +88,14 @@ interface LeaderboardEntry {
 export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [recentDocs, setRecentDocs] = useState<Document[]>([]);
   const [stats, setStats] = useState<ActivityStats | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [callingDoc, setCallingDoc] = useState<Document | null>(null);
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const avatarContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchRecentDocs = async () => {
@@ -244,12 +251,103 @@ export default function Home() {
     setHoveredDay(null);
   };
 
+  const handleCallClick = async (doc: Document) => {
+    if (!user?.id) return;
+    
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/get-agent/${user.id}/${doc.id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch agent ID');
+      }
+      const data = await response.json();
+      setAgentId(data.agent_id);
+      setCallingDoc(doc);
+    } catch (error) {
+      console.error('Error fetching agent ID:', error);
+      alert('Failed to load agent. Please try again.');
+    }
+  };
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const callDocId = searchParams.get('callDocId');
+    if (callDocId && recentDocs.length > 0 && user?.id) {
+      const doc = recentDocs.find(d => d.id === callDocId);
+      if (doc) {
+        (async () => {
+          try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/get-agent/${user.id}/${doc.id}`);
+            if (!response.ok) {
+              throw new Error('Failed to fetch agent ID');
+            }
+            const data = await response.json();
+            setAgentId(data.agent_id);
+            setCallingDoc(doc);
+            window.history.replaceState({}, '', window.location.pathname);
+          } catch (error) {
+            console.error('Error fetching agent ID:', error);
+            alert('Failed to load agent. Please try again.');
+          }
+        })();
+      }
+    }
+  }, [location.search, recentDocs, user]);
+
   return (
     <div className="min-h-screen relative overflow-hidden text-foreground">
       <LoginModal 
         isOpen={isLoginModalOpen} 
         onClose={() => setIsLoginModalOpen(false)} 
       />
+      
+      {callingDoc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md backdrop-saturate-150"
+          onClick={() => {
+            setCallingDoc(null);
+            setAgentId(null);
+          }}
+        >
+          <div
+            className="relative w-[min(1100px,92vw)] h-[min(80vh,760px)] rounded-3xl border border-white/15 bg-gradient-to-br from-neutral-900/90 via-black/90 to-neutral-950/95 shadow-[0_40px_120px_rgba(0,0,0,0.65)] ring-1 ring-white/10 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.08),transparent_55%)]" />
+            <button
+              onClick={() => {
+                setCallingDoc(null);
+                setAgentId(null);
+              }}
+              className="absolute top-4 right-4 z-10 p-2 rounded-full border border-white/10 bg-black/40 hover:bg-white/10 transition-colors text-white"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <div className="relative h-full w-full p-5 md:p-7 flex flex-col gap-4">
+              <div className="relative flex-1 rounded-2xl border border-white/10 bg-transparent overflow-hidden min-h-[320px]">
+                <div
+                  ref={avatarContainerRef}
+                  className="absolute inset-0 bg-transparent"
+                />
+                <AvatarLipsyncView key={callingDoc.id} containerRef={avatarContainerRef} />
+                <div className="absolute bottom-4 left-4 rounded-full border border-white/10 bg-black/60 px-3 py-1 text-xs uppercase tracking-widest text-white/70">
+                  Live Avatar
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+                {agentId && (
+                  <elevenlabs-convai 
+                    agent-id={agentId}
+                    variant="tiny"
+                    avatar-orb-color-1="#6366f1"
+                    avatar-orb-color-2="#a21caf"
+                    style-base-color="#6366f1"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="absolute inset-0 grid-lines opacity-50" />
       
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-neon-cyan/10 rounded-full blur-[100px]" />
@@ -451,6 +549,15 @@ export default function Home() {
                           Review
                         </motion.button>
                       </Link> */}
+                      <motion.button
+                        onClick={() => handleCallClick(doc)}
+                        className="p-2 rounded-lg text-muted-foreground hover:text-green-400 hover:bg-green-400/10 transition-colors"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        title="Call Avatar"
+                      >
+                        <Phone className="w-4 h-4" />
+                      </motion.button>
                       <Link to="/game" state={{ mode: 'auto', documentId: doc.id }}>
                         <motion.button
                           data-testid={`button-play-${doc.id}`}

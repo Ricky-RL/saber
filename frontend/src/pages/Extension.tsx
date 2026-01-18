@@ -8,8 +8,7 @@ import {
   Play,
   Pause,
   RotateCcw,
-  Check,
-  Bot,
+  Phone,
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/Auth';
@@ -34,21 +33,11 @@ export default function Extension() {
   const { user } = useAuth();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [selectedDocs, setSelectedDocs] = useState<string[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
 
-  const toggleSelection = (docId: string) => {
-    setSelectedDocs(prev => 
-      prev.includes(docId) 
-        ? prev.filter(id => id !== docId) 
-        : [...prev, docId]
-    );
-  };
-
-  const handleStartAI = () => {
-    if (selectedDocs.length === 0) return;
-    console.log('Starting AI with documents:', selectedDocs);
-    // Future integration can go here
+  const handleCallClick = async (doc: Document) => {
+    const frontendUrl = import.meta.env.VITE_FRONTEND_URL || "http://localhost:5173";
+    window.open(`${frontendUrl}?callDocId=${doc.id}`, '_blank');
   };
 
   useEffect(() => {
@@ -320,42 +309,35 @@ export default function Extension() {
                         </div>
                       ) : (
                         documents.map((doc, index) => {
-                          const isSelected = selectedDocs.includes(doc.id);
                           return (
                             <motion.div
                               key={doc.id}
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: index * 0.05 }}
-                              className={`glass-card rounded-xl p-4 border transition-all cursor-pointer group ${
-                                isSelected 
-                                  ? 'border-neon-cyan bg-neon-cyan/5' 
-                                  : 'border-white/10 hover:border-neon-magenta/50'
-                              }`}
-                              onClick={() => toggleSelection(doc.id)}
+                              className="glass-card rounded-xl p-4 border border-white/10 hover:border-neon-magenta/50 transition-all group"
                             >
                               <div className="flex items-center gap-3">
-                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                                  isSelected 
-                                    ? 'bg-neon-cyan border-neon-cyan' 
-                                    : 'border-muted-foreground group-hover:border-neon-magenta'
-                                }`}>
-                                  {isSelected && <Check className="w-3 h-3 text-black" />}
-                                </div>
-
                                 <div className="flex-1 min-w-0">
-                                  <h3 className={`font-ui font-semibold text-sm truncate transition-colors ${
-                                    isSelected ? 'text-neon-cyan' : 'text-foreground'
-                                  }`}>
+                                  <h3 className="font-ui font-semibold text-sm truncate text-foreground">
                                     {doc.name}
                                   </h3>
                                 </div>
+
+                                <motion.button
+                                  onClick={() => handleCallClick(doc)}
+                                  className="p-2 rounded-lg text-muted-foreground hover:text-green-400 hover:bg-green-400/10 transition-colors"
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  title="Call Avatar"
+                                >
+                                  <Phone className="w-4 h-4" />
+                                </motion.button>
 
                                 <a 
                                   href={`${import.meta.env.VITE_FRONTEND_URL || "http://localhost:5173"}/game?documentId=${doc.id}&mode=auto`}
                                   target="_blank" 
                                   rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   <motion.button
                                     className="p-2 rounded-lg bg-neon-magenta/10 text-neon-magenta hover:bg-neon-magenta/20 transition-colors"
@@ -372,28 +354,6 @@ export default function Extension() {
                         })
                       )}
                     </div>
-
-                    <motion.button
-                      disabled={selectedDocs.length === 0}
-                      onClick={handleStartAI}
-                      className={`w-full py-3 rounded-xl font-display font-bold flex items-center justify-center gap-2 transition-all ${
-                        selectedDocs.length > 0
-                          ? 'bg-gradient-to-r from-neon-purple to-neon-pink text-white shadow-lg shadow-neon-purple/25'
-                          : 'bg-muted text-muted-foreground cursor-not-allowed'
-                      }`}
-                      whileHover={selectedDocs.length > 0 ? { scale: 1.02, filter: "brightness(1.1)" } : {}}
-                      whileTap={selectedDocs.length > 0 ? { scale: 0.98 } : {}}
-                    >
-                      <Bot className="w-5 h-5" />
-                      START AI ({selectedDocs.length})
-                    </motion.button>
-                     
-                    {selectedDocs.length > 0 && (
-                      <div className="mt-4 p-3 rounded-lg bg-black/50 text-xs font-mono break-all border border-red-500/30">
-                        <p className="text-red-400 font-bold mb-1">DELETE THIS LATER:</p>
-                        <p className="text-muted-foreground">{JSON.stringify(selectedDocs, null, 2)}</p>
-                      </div>
-                    )}
                   </div>
                 )}
               </motion.div>
