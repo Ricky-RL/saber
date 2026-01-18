@@ -89,7 +89,7 @@ function GamePage() {
 
         // Using fetch to call the backend endpoint (Assuming backend is running on port 8000)
         // Adjust URL as needed (e.g. from env var)
-        const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
         
         supabase.auth.getSession().then(({ data: { session } }) => {
             fetch(`${API_URL}/game/results`, {
@@ -124,7 +124,7 @@ function GamePage() {
     if (user?.id) {
         const fetchEquipped = async () => {
             try {
-                const res = await fetch(`${import.meta.env.VITE_API_URL}/store/equipped/${user.id}`);
+                const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/store/equipped/${user.id}`);
                 if (res.ok) {
                     const data = await res.json();
                     setEquippedItems(data);
@@ -232,7 +232,7 @@ function GamePage() {
           
           const fetchGameDataFromExisting = async () => {
               setLoading(true);
-              const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+              const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
               
               try {
                   const session = await supabase.auth.getSession();
@@ -532,7 +532,7 @@ function GamePage() {
         
         // 1. Upload PDF to Storage & DB, then Generate Quiz + Music
         let docId = '';
-        const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
         // Check if user is logged in
         if (!user) {

@@ -37,7 +37,7 @@ export default function PreviewModal({ isOpen, onClose, document }: PreviewModal
     setLoading(true);
     setError(null);
 
-    const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
     try {
       // Fetch document from backend to get signed URL (bypassing RLS)
