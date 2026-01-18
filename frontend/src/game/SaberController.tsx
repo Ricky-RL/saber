@@ -22,6 +22,15 @@ export function SaberController({ side, color, isPaused = false }: SaberControll
   const velocity = useRef(new THREE.Vector3())
   const { viewport } = useThree()
 
+  const equippedItems = useGameStore(state => state.equippedItems)
+  const equippedPair = equippedItems?.saber_pair?.value // e.g., "#FF00FF,#00FFFF"
+  
+  let saberColor = color;
+  if (equippedPair && typeof equippedPair === 'string') {
+      const [leftColor, rightColor] = equippedPair.split(',');
+      saberColor = side === 'left' ? leftColor : rightColor;
+  }
+  
   // Input Handling Logic
   useFrame((_, delta) => {
     if (isPaused) return // Freeze Movement
@@ -99,14 +108,18 @@ export function SaberController({ side, color, isPaused = false }: SaberControll
     }
   })
 
+  // Render Saber
   return (
-    <group ref={groupRef} userData={{ isSaber: true, side, color }}>
-       {/* Reverted to High Quality Saber Model with Trails built-in */}
-       <Lightsaber 
-         color={color} 
-         isActive={true} 
-         rotation={[0, 0, 0]} // Reset rotation if needed, handled by controller logic
-       />
+    <group ref={groupRef}>
+      {/* 
+         Visual Offset: 
+         Controller/Wrist is at (0,0). Saber Handle should be in hand. 
+         Adjusted Y to -0.6 based on testing (Default was 0, felt like holding blade)
+      */}
+      <Lightsaber 
+        position={[0, -0.6, 0]} 
+        color={saberColor} 
+      />
     </group>
   )
 }

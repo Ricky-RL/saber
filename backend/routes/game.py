@@ -61,3 +61,39 @@ def get_user_history(user_id: str):
     except Exception as e:
         print(f"Error fetching user history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/sabers/{user_id}")
+def get_user_sabers(user_id: str):
+    try:
+        # Check for equipped saber pair
+        response = supabase.table("user_equipped_items")\
+            .select("store_items(value)")\
+            .eq("user_id", user_id)\
+            .eq("item_type", "saber_pair")\
+            .maybe_single()\
+            .execute()
+
+        default_left = "#FF00FF"
+        default_right = "#00FFFF"
+
+        if response.data and response.data.get('store_items'):
+             pair_value = response.data['store_items']['value']
+             colors = pair_value.split(',')
+             return {
+                 "left": colors[0],
+                 "right": colors[1] if len(colors) > 1 else colors[0]
+             }
+        
+        # Return default if nothing equipped
+        return {
+            "left": default_left,
+            "right": default_right
+        }
+
+    except Exception as e:
+        print(f"Error fetching saber colors: {e}")
+        # Build resilient fallback
+        return {
+            "left": "#FF00FF",
+            "right": "#00FFFF"
+        }

@@ -68,7 +68,7 @@ interface HistoryEntry {
 export default function Profile() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'documents' | 'history'>('documents');
+  const [activeTab, setActiveTab] = useState<'documents' | 'history' | 'store'>('documents');
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -76,11 +76,16 @@ export default function Profile() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
-
+  const [storeItems, setStoreItems] = useState<any[]>([]);
+  const [userBalance, setUserBalance] = useState(0);
+  const [purchasedItems, setPurchasedItems] = useState<string[]>([]);
+  const [equippedItems, setEquippedItems] = useState<any>({});
+  
   useEffect(() => {
     if (user) {
       fetchDocuments();
       fetchHistory();
+      fetchStoreData();
     }
   }, [user]);
 
@@ -128,6 +133,89 @@ export default function Profile() {
       }
     } catch (error) {
       console.error('Error fetching history:', error);
+    }
+  };
+
+  const fetchStoreData = async () => {
+    try {
+      if(!user?.id) return;
+
+      // Fetch Items
+      const itemsRes = await fetch(`${import.meta.env.VITE_API_URL}/store/items`);
+      if (itemsRes.ok) {
+        setStoreItems(await itemsRes.json());
+      }
+
+      // Fetch Balance
+      const balanceRes = await fetch(`${import.meta.env.VITE_API_URL}/store/balance/${user.id}`);
+      if (balanceRes.ok) {
+        const data = await balanceRes.json();
+        setUserBalance(data.balance);
+      }
+
+      // Fetch Purchases
+      const purchasesRes = await fetch(`${import.meta.env.VITE_API_URL}/store/purchases/${user.id}`);
+      if (purchasesRes.ok) {
+        setPurchasedItems(await purchasesRes.json());
+      }
+
+      // Fetch Equipped
+      const equippedRes = await fetch(`${import.meta.env.VITE_API_URL}/store/equipped/${user.id}`);
+      if (equippedRes.ok) {
+        setEquippedItems(await equippedRes.json());
+      }
+
+    } catch (e) {
+      console.error("Error fetching store data", e);
+    }
+  };
+
+  const handlePurchase = async (itemId: string) => {
+    try {
+        if(!user?.id) return;
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/store/purchase`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: user.id, item_id: itemId })
+        });
+        
+        if (res.ok) {
+            const data = await res.json();
+            setUserBalance(data.new_balance);
+            setPurchasedItems([...purchasedItems, itemId]);
+            // alert("Purchase successful!"); // Removed alert
+        } else {
+            const err = await res.json();
+            alert(`Purchase failed: ${err.detail}`);
+        }
+    } catch (e) {
+        console.error("Error purchasing item", e);
+    }
+  };
+
+  const handleEquip = async (itemId: string, itemType: string) => {
+    try {
+        if(!user?.id) return;
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/store/equip`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: user.id, item_id: itemId, item_type: itemType })
+        });
+
+        if(res.ok) {
+            // Optimistic update
+            const item = storeItems.find(i => i.id === itemId);
+            setEquippedItems({
+                ...equippedItems,
+                [itemType]: {
+                    item_id: itemId,
+                    value: item.value,
+                    name: item.name
+                }
+            });
+        }
+    } catch(e) {
+        console.error("Error equipping item", e);
     }
   };
 
@@ -260,8 +348,23 @@ export default function Profile() {
           >
             QUIZ HISTORY
           </motion.button>
+
+          <motion.button
+            data-testid="tab-store"
+            onClick={() => setActiveTab('store')}
+            className={`font-display text-lg font-bold px-6 py-3 rounded-lg transition-all ${
+              activeTab === 'store' 
+                ? 'bg-neon-yellow/20 text-neon-yellow border-glow-yellow' 
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            STORE ({userBalance})
+          </motion.button>
         </div>
 
+        {/* Tab content */}
         <AnimatePresence mode="wait">
           {activeTab === 'documents' && (
             <motion.div
@@ -485,6 +588,68 @@ export default function Profile() {
               </div>
             </motion.div>
           )}
+          
+          {activeTab === 'store' && (
+            <motion.div
+              key="store"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.2 }}
+              className="mt-8"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {storeItems.map((item) => {
+                    const isPurchased = purchasedItems.includes(item.id) || item.cost === 0;
+                    
+                    // If equipped specific item OR if default item and nothing equipped in that slot
+                    const isDefault = item.name === 'Classic Duo';
+                    const nothingEquipped = !equippedItems[item.type];
+                    
+                    const isEquipped = (equippedItems[item.type]?.item_id === item.id) || (isDefault && nothingEquipped);
+                    
+                    // Parse colors for preview
+                    const colors = item.value.split(',');
+                    const leftColor = colors[0];
+                    const rightColor = colors.length > 1 ? colors[1] : colors[0];
+
+                    return (
+                        <div key={item.id} className="glass-card rounded-xl p-6 flex flex-col items-center hover:bg-white/5 transition-colors">
+                            <div className="flex space-x-3 mb-4">
+                                <div className="w-12 h-12 rounded-full shadow-[0_0_15px_rgba(0,0,0,0.5)] border-2 border-white/10" style={{ backgroundColor: leftColor, boxShadow: `0 0 20px ${leftColor}66` }}></div>
+                                <div className="w-12 h-12 rounded-full shadow-[0_0_15px_rgba(0,0,0,0.5)] border-2 border-white/10" style={{ backgroundColor: rightColor, boxShadow: `0 0 20px ${rightColor}66` }}></div>
+                            </div>
+                            <h3 className="text-xl font-display font-bold text-white mb-1">{item.name}</h3>
+                            <p className="text-sm text-gray-400 mb-6 text-center font-ui">{item.description}</p>
+                            
+                            <div className="mt-auto w-full">
+                                {!isPurchased ? (
+                                    <button
+                                        onClick={() => handlePurchase(item.id)}
+                                        className="w-full inline-flex justify-center items-center px-4 py-3 border border-transparent text-sm font-bold font-display rounded-lg shadow-lg text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all transform hover:scale-[1.02]"
+                                    >
+                                        Buy for {item.cost} pts
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => handleEquip(item.id, item.type)}
+                                        disabled={isEquipped}
+                                        className={`w-full inline-flex justify-center items-center px-4 py-3 border text-sm font-bold font-display rounded-lg shadow-lg focus:outline-none transition-all
+                                            ${isEquipped 
+                                                ? 'border-white/10 text-gray-400 bg-white/5 cursor-default' 
+                                                : 'border-transparent text-white bg-green-600 hover:bg-green-500 hover:shadow-green-500/25'}`}
+                                    >
+                                        {isEquipped ? 'EQUIPPED' : 'EQUIP'}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+              </div>
+            </motion.div>
+          )}
+
         </AnimatePresence>
       </div>
     </div>

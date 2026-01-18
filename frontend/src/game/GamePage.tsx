@@ -10,7 +10,7 @@ import { useAuth } from '../contexts/Auth'
 import { supabase } from '../supabaseClient'
 
 function GamePage() {
-  const { setHandPositions, setLevelData, setAudioBuffer, isGameOver, levelData, correctCount, maxCombo, score } = useGameStore()
+  const { setHandPositions, setLevelData, setAudioBuffer, isGameOver, levelData, correctCount, maxCombo, score, setEquippedItems } = useGameStore()
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [hasGenerated, setHasGenerated] = useState(false)
@@ -69,6 +69,24 @@ function GamePage() {
         })
     }
   }, [isGameOver, user, levelData]) // Runs when isGameOver becomes true
+
+  // Fetch Equipped Items on Load
+  useEffect(() => {
+    if (user?.id) {
+        const fetchEquipped = async () => {
+            try {
+                const res = await fetch(`${import.meta.env.VITE_API_URL}/store/equipped/${user.id}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setEquippedItems(data);
+                }
+            } catch (e) {
+                console.error("Error fetching equipped items in game", e);
+            }
+        };
+        fetchEquipped();
+    }
+  }, [user]);
 
   const handleHandsDetected = (left: {x: number, y: number, angle: number} | null, right: {x: number, y: number, angle: number} | null) => {
       setHandPositions(left, right)

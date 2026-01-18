@@ -48,7 +48,11 @@ export interface GameState {
   
   // Feedback
   lastAnswer: string | null
-  setLastAnswer: (answer: string | null) => void
+  setLastAnswer: (ans: string | null) => void
+
+  // Store Items
+  equippedItems: any
+  setEquippedItems: (items: any) => void
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -63,25 +67,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   audioContext: null,
   audioSource: null,
   audioStartTime: 0,
-  currentQuestionText: null, // Initial State
+  currentQuestionText: null,
+
   correctCount: 0,
 
   setLevelData: (data) => set({ levelData: data }),
   setAudioBuffer: (buffer) => set({ audioBuffer: buffer }),
-  setAudioContext: (ctx, source, startTime) => set({ audioContext: ctx, audioSource: source, audioStartTime: startTime }),
-  setCurrentQuestionText: (text) => set({ currentQuestionText: text }),
-  
-  lastAnswer: null,
-  setLastAnswer: (ans) => set({ lastAnswer: ans }),
-
-  setPaused: (paused) => set({ isPaused: paused }),
-  togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
-  incrementCorrectCount: () => set((state) => ({ correctCount: state.correctCount + 1 })),
-
-  // Hand Tracking State
-  leftHandPos: { x: 0, y: 0, angle: 0 } as { x: number, y: number, angle: number } | null,
-  rightHandPos: { x: 0, y: 0, angle: 0 } as { x: number, y: number, angle: number } | null,
-  setHandPositions: (left, right) => set({ leftHandPos: left, rightHandPos: right }),
 
   setScore: (fn) => set((state) => ({ score: fn(state.score) })),
   setCombo: (fn) => {
@@ -118,4 +109,22 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
     set({ isPlaying: false, isGameOver: true, audioSource: null })
   },
+
+  // Hand Tracking State
+  leftHandPos: { x: 0, y: 0, angle: 0 } as { x: number, y: number, angle: number } | null,
+  rightHandPos: { x: 0, y: 0, angle: 0 } as { x: number, y: number, angle: number } | null,
+  setHandPositions: (left, right) => set({ leftHandPos: left, rightHandPos: right }),
+
+  setAudioContext: (ctx, source, startTime) => set({ audioContext: ctx, audioSource: source, audioStartTime: startTime }),
+  setCurrentQuestionText: (text) => set({ currentQuestionText: text }),
+
+  equippedItems: {},
+  setEquippedItems: (items) => set({ equippedItems: items }),
+
+  lastAnswer: null,
+  setLastAnswer: (ans) => set({ lastAnswer: ans }),
+
+  setPaused: (paused) => set({ isPaused: paused }),
+  togglePause: () => set((state) => ({ isPaused: !state.isPaused })),
+  incrementCorrectCount: () => set((state) => ({ correctCount: state.correctCount + 1 })),
 }))

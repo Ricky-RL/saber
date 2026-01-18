@@ -30,7 +30,8 @@ function GameLoop() {
     setScore,
     setCombo, 
     setAudioContext,
-    incrementCorrectCount
+    incrementCorrectCount,
+    equippedItems // Need equipped items to update lane colors
   } = useGameStore()
 
   const [blocks, setBlocks] = useState<any[]>([])
@@ -533,8 +534,7 @@ function GameLoop() {
       ))}
       <gridHelper args={[20, 20, 0x333333, 0x111111]} position={[0, -2, 0]} />
 
-      <PulsatingLine position={[-8, -2, -20]} color="#ff00ff" />
-      <PulsatingLine position={[8, -2, -20]} color="#00ffff" />
+      <LaneColors equippedItems={equippedItems} />
 
       {/* Moving Floor - Matte */}
       <mesh position={[0, -2.1, -20]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -557,6 +557,27 @@ function GameLoop() {
       </Html>
     </>
   )
+}
+
+function LaneColors({ equippedItems }: { equippedItems: any }) {
+    // Determine colors
+    const equippedPair = equippedItems?.saber_pair?.value // e.g., "#FF00FF,#00FFFF"
+  
+    let leftColor = "#ff00ff";
+    let rightColor = "#00ffff";
+
+    if (equippedPair && typeof equippedPair === 'string') {
+        const colors = equippedPair.split(',');
+        leftColor = colors[0];
+        rightColor = colors.length > 1 ? colors[1] : colors[0];
+    }
+
+    return (
+        <>
+            <PulsatingLine position={[-8, -2, -20]} color={leftColor} />
+            <PulsatingLine position={[8, -2, -20]} color={rightColor} />
+        </>
+    )
 }
 
 function PulsatingLine({ position, color }: { position: [number, number, number], color: string }) {
