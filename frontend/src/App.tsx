@@ -6,6 +6,7 @@ import { AuthProvider } from './contexts/Auth';
 import ProtectedRoute from './components/ProtectedRoute';
 import GamePage from './game/GamePage';
 import AvatarPage from './pages/Avatar';
+import WrappedPage from './pages/Wrapped';
 
 function App() {
   return (
@@ -24,6 +25,14 @@ function App() {
           />
           <Route path="/game" element={<GamePage />} />
           <Route path="/avatar" element={<AvatarPage />} />
+          <Route
+            path="/wrapped"
+            element={
+              <ProtectedRoute>
+                <WrappedPage />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

@@ -20,7 +20,8 @@ import {
   Upload,
   Clock,
   LogOut,
-  Eye
+  Eye,
+  Gift
 } from 'lucide-react';
 
 // Helper for relative time
@@ -164,7 +165,7 @@ export default function Profile() {
   // Calculate stats from history
   const bestScore = history.reduce((max, curr) => Math.max(max, curr.score), 0);
   const avgAccuracy = history.length > 0
-    ? Math.round(history.reduce((acc, curr) => acc + (curr.accuracy * 100), 0) / history.length)
+    ? Math.round(history.reduce((acc, curr) => acc + curr.accuracy, 0) / history.length)
     : 0;
   const totalSessions = history.length;
 
@@ -172,65 +173,65 @@ export default function Profile() {
     doc.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const currentYear = new Date().getFullYear();
+
   return (
-    <div className="min-h-screen relative overflow-hidden text-foreground">
-      <UploadModal 
-        isOpen={isUploadModalOpen} 
-        onClose={() => setIsUploadModalOpen(false)}
-        onUploadComplete={fetchDocuments}
-      />
-      <PreviewModal
-        isOpen={!!previewDoc}
-        onClose={() => setPreviewDoc(null)}
-        document={previewDoc}
-      />
-      <div className="absolute inset-0 grid-lines opacity-30" />
-      <div className="absolute top-0 right-1/4 w-96 h-96 bg-neon-purple/10 rounded-full blur-[100px]" />
+    <div className="min-h-screen bg-black text-white p-8">
+      <div className="max-w-6xl mx-auto">
+        <UploadModal
+          isOpen={isUploadModalOpen}
+          onClose={() => setIsUploadModalOpen(false)}
+          onUploadComplete={fetchDocuments}
+        />
+        
+        {previewDoc && (
+          <PreviewModal
+            isOpen={!!previewDoc}
+            onClose={() => setPreviewDoc(null)}
+            document={previewDoc}
+          />
+        )}
 
-      <nav className="relative z-10 flex items-center justify-between px-8 py-6">
-        <div className="flex items-center gap-6">
-          <Link to="/">
-            <motion.button
-              data-testid="button-back"
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-              whileHover={{ x: -3 }}
+        {/* Header */}
+        <header className="flex justify-between items-center mb-12">
+          <div className="flex items-center gap-4">
+            <Link 
+              to="/" 
+              className="p-2 hover:bg-white/10 rounded-full transition-colors"
             >
-              <ChevronLeft className="w-5 h-5" />
-              Back
-            </motion.button>
-          </Link>
-          
-          <Link to="/">
-            <div className="flex items-center gap-3 cursor-pointer">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-neon-cyan to-neon-magenta flex items-center justify-center">
-                <Zap className="w-5 h-5 text-background" />
-              </div>
-              <h1 className="font-display text-xl font-bold tracking-wider">
-                <span className="text-neon-cyan">STUDY</span>
-                <span className="text-neon-magenta">SABER</span>
-              </h1>
-            </div>
-          </Link>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="text-right mr-4 hidden sm:block">
-             <p className="text-xs text-muted-foreground font-ui mb-0.5 uppercase tracking-wider">Player</p>
-             <div className="text-lg font-bold bg-gradient-to-r from-neon-cyan to-neon-magenta bg-clip-text text-transparent font-display tracking-wide">
-               {user?.user_metadata?.full_name || user?.email}
-             </div>
+              <ChevronLeft className="w-6 h-6" />
+            </Link>
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
+              Profile
+            </h1>
           </div>
-          <button
-            onClick={handleSignOut}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign Out
-          </button>
-        </div>
-      </nav>
+          
+          <div className="flex items-center gap-4">
+             <Link
+               to="/wrapped"
+               className="flex items-center gap-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white px-4 py-2 rounded-full font-bold hover:opacity-90 transition-all transform hover:scale-105 shadow-lg shadow-purple-500/20"
+             >
+                <Gift size={18} />
+                <span>Your {currentYear} Wrapped</span>
+             </Link>
 
-      <main className="relative z-10 max-w-6xl mx-auto px-8 py-4">
+            <button
+              onClick={() => setIsUploadModalOpen(true)}
+              className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-full font-medium hover:bg-gray-200 transition-colors"
+            >
+              <Upload className="w-4 h-4" />
+              Upload New
+            </button>
+
+            <button
+              onClick={handleSignOut}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors text-gray-400 hover:text-white"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
+        </header>
+
         <div className="flex items-center gap-4 mb-8">
           <motion.button
             data-testid="tab-documents"
@@ -282,17 +283,6 @@ export default function Profile() {
                     className="w-full pl-12 pr-4 py-3 rounded-xl bg-card border border-border focus:border-neon-cyan focus:ring-1 focus:ring-neon-cyan outline-none font-ui transition-all"
                   />
                 </div>
-                
-                <motion.button
-                  onClick={() => setIsUploadModalOpen(true)}
-                  data-testid="button-upload"
-                  className="neon-button px-5 py-3 rounded-xl font-ui font-medium flex items-center gap-2"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  <Upload className="w-4 h-4" />
-                  Upload New
-                </motion.button>
               </div>
 
               <div className="space-y-3">
@@ -496,7 +486,7 @@ export default function Profile() {
             </motion.div>
           )}
         </AnimatePresence>
-      </main>
+      </div>
     </div>
   );
 }
