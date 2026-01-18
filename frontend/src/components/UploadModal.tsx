@@ -41,32 +41,73 @@ export default function UploadModal({ isOpen, onClose, onUploadComplete }: Uploa
     const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
     try {
-      // Upload document only - no quiz generation
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      formData.append('user_id', user.id);
-      if (docTopic.trim()) {
-        formData.append('topic', docTopic.trim());
+      // 1. Upload file to Supabase Storage
+      const fileExt = selectedFile.name.split('.').pop();
+      const fileName = `${user.id}/${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, selectedFile);
+
+      if (uploadError) throw uploadError;
+
+      // 2. Insert record into documents table
+      const { data: docData, error: dbError } = await supabase
+        .from('documents')
+        .insert({
+          user_id: user.id,
+          name: docName.trim(),
+          topic: docTopic.trim() || null, // Add topic
+          file_path: filePath,
+          file_type: selectedFile.type,
+          file_size: selectedFile.size,
+          processed: false,
+          questions: 0
+        })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      // 3. Create agent for the document
+      if (docData?.id) {
+        try {
+          console.log(`Creating agent for document ${docData.id}...`);
+          const session = await supabase.auth.getSession();
+          const agentFormData = new FormData();
+          agentFormData.append('user_id', user.id);
+          
+          const agentResponse = await fetch(`${API_URL}/create-agent/${docData.id}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.data.session?.access_token || ''}`
+            },
+            body: agentFormData
+          });
+
+          if (!agentResponse.ok) {
+            const errorText = await agentResponse.text();
+            let errorDetail = "Agent creation failed";
+            try {
+              const err = JSON.parse(errorText);
+              errorDetail = err.detail || err.message || errorText;
+            } catch {
+              errorDetail = errorText || `HTTP ${agentResponse.status}: ${agentResponse.statusText}`;
+            }
+            console.error("Agent creation failed:", errorDetail);
+            console.error("Response status:", agentResponse.status);
+          } else {
+            const agentData = await agentResponse.json();
+            console.log("Agent created successfully:", agentData);
+          }
+        } catch (agentError: any) {
+          console.error("Error creating agent:", agentError);
+          console.error("Error message:", agentError.message);
+          console.error("Error stack:", agentError.stack);
+        }
       }
 
-      console.log("🚀 Uploading Document...");
-      const uploadRes = await fetch(`${API_URL}/document`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-        },
-        body: formData
-      });
-
-      if (!uploadRes.ok) {
-        const err = await uploadRes.json();
-        throw new Error(err.detail || 'Upload failed');
-      }
-
-      const uploadData = await uploadRes.json();
-      console.log("✅ Document Uploaded:", uploadData);
-
-      // Just close and refresh - no quiz generation
       onUploadComplete();
       onClose();
       setSelectedFile(null);
