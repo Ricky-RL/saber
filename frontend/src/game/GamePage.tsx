@@ -60,11 +60,11 @@ function GamePage() {
         // console.log(levelData)
 
         const rawTotalQuestions = levelData.timeline.length > 0 ? levelData.timeline.length : (levelData.questionsQueue?.length || 0);
-        const totalQuestions = rawTotalQuestions / 6;
+        const totalQuestions = rawTotalQuestions / 8;
         console.log("Total Questions:", totalQuestions);
         console.log("Correct Count:", correctCount);
 
-        let accuracyRaw = totalQuestions > 0 ? (correctCount * 2 / totalQuestions) : (Math.random() * 0.4);
+        let accuracyRaw = totalQuestions > 0 ? (correctCount / totalQuestions) : (Math.random() * 0.4);
         if (accuracyRaw > 1) {
           accuracyRaw = 0.7 + Math.random() * 0.3
         }
