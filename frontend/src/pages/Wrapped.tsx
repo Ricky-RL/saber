@@ -4,7 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/Auth';
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
-import { Star, TrendingUp, Calendar, Zap, Trophy, Activity, ArrowRight, X, Music, Headphones } from 'lucide-react';
+import { Zap, Trophy, Activity, ArrowRight, X, Music } from 'lucide-react';
+
+import { HelloCube } from '../components/HelloCube';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls } from '@react-three/drei';
 
 interface WrappedStats {
   has_data: boolean;
@@ -94,30 +98,37 @@ const WrappedPage = () => {
            />
        </div>
 
-       <div className="flex flex-row items-center justify-center gap-16">
+       <div className="flex flex-row items-center justify-center gap-4 h-full w-full max-w-6xl"> 
+            {/* Cube on Left */}
             <motion.div 
-                initial={{ scale: 0.8, rotateX: 90 }} 
-                animate={{ scale: 1, rotateX: 0 }} 
+                initial={{ scale: 0.8, x: -100, opacity: 0 }} 
+                animate={{ scale: 1, x: 0, opacity: 1 }} 
                 transition={{ type: "spring", stiffness: 100 }}
-                className="w-80 h-80 relative preserve-3d"
+                className="w-[60%] h-[800px] relative preserve-3d flex items-center justify-center"
             >
-                <div className="absolute inset-0 border-4 border-[#5865F2] transform rotate-12"></div>
-                <div className="absolute inset-0 border-4 border-[#EB459E] transform -rotate-12 mix-blend-screen"></div>
-                <div className="absolute inset-0 bg-white/5 backdrop-blur-sm border border-white/10 flex items-center justify-center">
-                    <div className="text-8xl">🎮</div>
+                <div className="absolute inset-0">
+                    <Canvas camera={{ position: [0, 0, 7], fov: 45 }} gl={{ alpha: true }}>
+                        <HelloCube 
+                            playerName={user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || "Traveller"} 
+                            primaryColor="#ff00ff" 
+                            secondaryColor="#00f0ff"
+                        />
+                        <OrbitControls enableZoom={false} />
+                    </Canvas>
                 </div>
             </motion.div>
 
+            {/* Text on Right */}
             <motion.div 
                 initial={{ x: 50, opacity: 0 }} 
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ delay: 0.3 }}
-                className="text-left"
+                className="text-left z-10 w-[40%]"
             >
-                <div className="flex items-center gap-2 mb-4 text-gray-400 uppercase text-sm tracking-widest">
-                    <Zap size={16} /> Total Games Played
+                <div className="flex items-center gap-2 mb-4 text-neon-pink text-glow-pink uppercase text-sm tracking-widest font-bold">
+                    <Zap size={16} className="text-neon-pink drop-shadow-[0_0_10px_rgba(255,0,255,0.8)]" /> Total Games Played
                 </div>
-                <h1 className="text-9xl font-black mb-6 font-mono bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-500">{stats.total_games}</h1>
+                <h1 className="text-9xl font-black mb-6 font-mono text-neon-pink text-glow-pink">{stats.total_games}</h1>
                 <p className="text-2xl text-gray-300 font-medium max-w-md">Ready to review your performance?</p>
             </motion.div>
        </div>
@@ -149,7 +160,7 @@ const WrappedPage = () => {
                 <motion.h2 
                     initial={{ x: -50, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
-                    className="text-8xl font-black text-yellow-400 mb-4 font-mono leading-none"
+                    className="text-8xl font-black text-neon-yellow text-glow-yellow mb-4 font-mono leading-none"
                 >
                     {stats.most_active_day.toUpperCase().split(' ')[0]}
                 </motion.h2>
@@ -182,7 +193,7 @@ const WrappedPage = () => {
 
                 <h2 className="text-7xl font-black mb-8 uppercase leading-tight">
                     Your<br/>
-                    <span className="text-green-500">Accuracy</span>
+                    <span className="text-neon-green text-glow-green">Accuracy</span>
                 </h2>
                 
                 <p className="text-2xl font-bold text-gray-300">

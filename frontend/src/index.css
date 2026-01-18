@@ -97,6 +97,20 @@
       0 0 40px hsl(var(--neon-pink) / 0.6);
   }
 
+  .text-glow-yellow {
+    text-shadow:
+      0 0 10px hsl(var(--neon-yellow)),
+      0 0 20px hsl(var(--neon-yellow) / 0.8),
+      0 0 40px hsl(var(--neon-yellow) / 0.6);
+  }
+
+  .text-glow-green {
+    text-shadow:
+      0 0 10px hsl(var(--neon-green)),
+      0 0 20px hsl(var(--neon-green) / 0.8),
+      0 0 40px hsl(var(--neon-green) / 0.6);
+  }
+
   .box-glow-cyan {
     box-shadow:
       0 0 15px hsl(var(--neon-cyan) / 0.5),
