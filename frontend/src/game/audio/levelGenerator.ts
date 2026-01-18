@@ -92,7 +92,7 @@ export const PLACEHOLDER_QUESTIONS: QuestionData[] = [
   }
 ];
 
-export function generateLevel(audioData: AudioAnalysisData, _passedQuestions: QuestionData[] = [], difficulty: Difficulty = 'EASY'): GameLevelData {
+export function generateLevel(audioData: AudioAnalysisData, passedQuestions: QuestionData[] = [], difficulty: Difficulty = 'EASY'): GameLevelData {
   const levelData: GameLevelData = {
     metadata: {
       ...audioData.metadata || {},
@@ -101,8 +101,12 @@ export function generateLevel(audioData: AudioAnalysisData, _passedQuestions: Qu
     timeline: []
   };
 
-  // Use internal biology questions if none passed (or if passed are empty/legacy)
-  const questions = PLACEHOLDER_QUESTIONS;
+  // Use passed questions if available, otherwise fallback to placeholders (or empty)
+  let questions = passedQuestions.length > 0 ? passedQuestions : PLACEHOLDER_QUESTIONS;
+  
+  // Randomize Questions (Shuffle)
+  questions = [...questions].sort(() => Math.random() - 0.5);
+
   let questionIndex = 0;
   
   // Determine beat interval based on difficulty
@@ -110,11 +114,11 @@ export function generateLevel(audioData: AudioAnalysisData, _passedQuestions: Qu
   if (difficulty === 'MEDIUM') beatInterval = 4; // User Request: Higher density (Every 4th beat)
   if (difficulty === 'HARD') beatInterval = 2;
 
-  // LIMIT TO 30 SECONDS (User Request)
-  const MAX_DURATION = 30; 
+  // LIMIT TO 60 SECONDS (User Request)
+  const MAX_DURATION = 60; 
 
   // Count valid beats to avoid infinite loop
-  const _validBeats = audioData.beats.filter(b => b >= 8.0 && b <= MAX_DURATION);
+  // const _validBeats = audioData.beats.filter(b => b >= 8.0 && b <= MAX_DURATION);
 
   for (let i = 0; i < audioData.beats.length; i += beatInterval) {
     const beatTime = audioData.beats[i];
@@ -125,12 +129,11 @@ export function generateLevel(audioData: AudioAnalysisData, _passedQuestions: Qu
     // Strict cut-off
     if (beatTime > MAX_DURATION) break; 
     
-    // Stop if we run out of questions (No Looping - User Request)
-    if (questionIndex >= questions.length) {
-       break; 
-    }
-
-    const question = questions[questionIndex];
+    // Get question (Looping logic)
+    // If we run out, reshuffle and start over? Or just simple modulo loop.
+    // Simple modulo loop for now to ensure all Questions are used before repeating.
+    const qIdx = questionIndex % questions.length;
+    const question = questions[qIdx];
     
     // Determine Type Variation for True/False
     // Randomly choose between PAIR (Separate blocks) and SPLIT (Single block)
