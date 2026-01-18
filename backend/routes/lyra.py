@@ -144,9 +144,22 @@ async def generate_song_with_lyra(bpm: int) -> bytes:
     }
     
     prompt = (
-        f"Generate an electronic dance music track at {bpm} BPM. "
-        f"The song should have a strong, consistent beat perfect for rhythm gameplay. "
-        f"Style: high-energy electronic beats suitable for rhythm games like Beat Saber."
+        f"Generate a high-energy electronic video game music track at {bpm} BPM. "
+        f"Style: Video game music similar to Beat Saber's intro song - energetic, pump-inducing, and perfectly structured for gameplay. "
+        f"The track should have clear, well-defined beats that are easy to follow, with a cohesive and flowing structure (not fragmented). "
+        f"Use driving synths, crisp percussion, and a solid bassline that supports the rhythm without overpowering it. "
+        f"The music should feel like it belongs in a rhythm game - engaging and motivating, but balanced and structured. "
+        f"Think: video game soundtrack meets electronic dance music - polished, cohesive, and designed for interactive gameplay. "
+        f"The beat should be prominent and clear enough to follow precisely, but the overall mix should be balanced and musical. "
+        f"Avoid chaotic or overwhelming elements - this is game music that enhances the experience, not club music that dominates it."
+    )
+    
+    # Negative prompt to avoid club/festival music and fragmented styles
+    negative_prompt = (
+        "club music, festival music, overpowering beats, chaotic, fragmented, disjointed, "
+        "too aggressive, overwhelming bass, distorted, harsh, club remix, festival anthem, "
+        "soft, ambient, subtle, quiet, gentle, calm, relaxing, background music, "
+        "unclear beats, muffled percussion, minimal, lo-fi, experimental, abstract"
     )
     
     # Vertex AI Lyria payload structure
@@ -156,6 +169,7 @@ async def generate_song_with_lyra(bpm: int) -> bytes:
         "instances": [
             {
                 "prompt": prompt,
+                "negative_prompt": negative_prompt,
             }
         ],
         "parameters": {
