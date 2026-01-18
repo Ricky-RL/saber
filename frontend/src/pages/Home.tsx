@@ -12,7 +12,8 @@ import {
   Gamepad2,
   Play,
   Clock,
-  User
+  User,
+  Trophy
 } from 'lucide-react';
 
 /*
@@ -73,12 +74,20 @@ interface ActivityStats {
     best_combo: number;
 }
 
+interface LeaderboardEntry {
+  rank: number;
+  name: string;
+  score: number;
+  id: string;
+}
+
 export default function Home() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [recentDocs, setRecentDocs] = useState<Document[]>([]);
   const [stats, setStats] = useState<ActivityStats | null>(null);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
 
   useEffect(() => {
     const fetchRecentDocs = async () => {
@@ -128,6 +137,14 @@ export default function Home() {
             .catch(err => console.error("Error loading stats", err));
     }
   }, [user]);
+
+  // Fetch Leaderboard
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/stats/leaderboard`)
+        .then(res => res.json())
+        .then(data => setLeaderboard(data))
+        .catch(err => console.error("Error loading leaderboard", err));
+  }, []); // Empty dependency array as leaderboard is global
 
   const studyCalendar = useMemo(() => {
      if (!stats) return []; 
@@ -518,6 +535,30 @@ export default function Home() {
                   <span className="text-sm text-muted-foreground">Avg Accuracy</span>
                   <span className="font-display text-neon-cyan">{stats ? stats.average_accuracy : 0}%</span>
                 </div>
+              </div>
+            </div>
+
+            <div className="glass-card rounded-xl p-5 mt-4">
+              <div className="flex items-center gap-3 mb-4">
+                <Trophy className="w-5 h-5 text-yellow-400" />
+                <h3 className="font-ui font-semibold">Leaderboard</h3>
+              </div>
+              <div className="space-y-3">
+                {leaderboard.length > 0 ? (
+                  leaderboard.map((entry, idx) => (
+                    <div key={entry.id} className="flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <span className={`font-display w-4 text-center ${idx === 0 ? 'text-yellow-400' : idx === 1 ? 'text-gray-300' : idx === 2 ? 'text-amber-600' : 'text-muted-foreground'}`}>{idx + 1}</span>
+                        <span className="text-sm text-foreground truncate max-w-[120px]">{entry.name}</span>
+                      </div>
+                      <span className="font-display text-neon-cyan text-sm">{entry.score} pts</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center text-sm text-muted-foreground py-2">
+                    No scores yet
+                  </div>
+                )}
               </div>
             </div>
           </motion.section>

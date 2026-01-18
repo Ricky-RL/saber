@@ -5,6 +5,51 @@ from collections import defaultdict
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
+@router.get("/leaderboard")
+def get_leaderboard():
+    try:
+        # Fetch all statistics
+        response = supabase.table("user_statistics").select("user_id, score").execute()
+        data = response.data
+        
+        if not data:
+            return []
+
+        user_scores = defaultdict(int)
+        for row in data:
+            user_scores[row['user_id']] += row['score']
+            
+        # Sort by score desc and take top 5
+        sorted_users = sorted(user_scores.items(), key=lambda x: x[1], reverse=True)[:5]
+        
+        leaderboard = []
+        for rank, (user_id, total_score) in enumerate(sorted_users, 1):
+            name = f"User {user_id[:4]}"
+            try:
+                # Attempt to fetch user metadata locally if we can't search auth users easily
+                # actually supabase-py auth.admin needs service role key. 
+                # Assuming SUPABASE_KEY in env is service role key as it allows bypassing RLS in other routes potentially.
+                user_response = supabase.auth.admin.get_user_by_id(user_id)
+                if user_response and user_response.user:
+                     meta = user_response.user.user_metadata
+                     name = meta.get('full_name') or meta.get('name') or user_response.user.email.split('@')[0]
+            except Exception:
+                pass
+            
+            leaderboard.append({
+                "rank": rank,
+                "name": name,
+                "score": total_score,
+                "id": user_id
+            })
+            
+        return leaderboard
+        
+    except Exception as e:
+        print(f"Error fetching leaderboard: {e}")
+        # Return empty list on error to not break UI
+        return []
+
 @router.get("/activity/{user_id}")
 def get_user_activity(user_id: str):
     try:
