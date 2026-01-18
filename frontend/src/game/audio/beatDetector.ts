@@ -9,18 +9,29 @@ export interface AudioAnalysisData {
   beats: number[]; // Array of absolute timestamps (in seconds)
 }
 
-export async function analyzeAudio(arrayBuffer: ArrayBuffer): Promise<AudioAnalysisData> {
+export async function analyzeAudio(arrayBuffer: ArrayBuffer, fallbackBpm?: number): Promise<AudioAnalysisData> {
   const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+  let audioBuffer: AudioBuffer;
+  
+  try {
+    audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+  } catch (error) {
+    console.error("Error decoding audio:", error);
+    throw new Error("Failed to decode audio file. Please ensure it's a valid audio format.");
+  }
+
+  // Check if audio has valid data
+  if (!audioBuffer || audioBuffer.length === 0 || audioBuffer.duration === 0) {
+    console.warn("Audio buffer is empty or invalid");
+    throw new Error("Audio file appears to be empty or invalid");
+  }
 
   try {
     const { bpm, offset } = await guess(audioBuffer);
     
     // Sanity check BPM or normalize if needed
-    // The library usually does a good job, but we can clamp or double/halve if needed.
-    // For now, let's trust the library but ensure it's not zero.
-    const validBpm = bpm || 120;
-    const validOffset = offset || 0;
+    const validBpm = bpm && bpm > 0 ? bpm : (fallbackBpm || 120);
+    const validOffset = offset && offset >= 0 ? offset : 0;
 
     const beatDuration = 60 / validBpm;
     const beats: number[] = [];
@@ -41,15 +52,27 @@ export async function analyzeAudio(arrayBuffer: ArrayBuffer): Promise<AudioAnaly
       beats,
     };
   } catch (error) {
-    console.error("Error detecting beats:", error);
-    // Fallback: Return empty or basic structure
+    // Fallback: Use fallback BPM or default to 120
+    const fallbackBpmValue = fallbackBpm || 120;
+    console.warn("Beat detection failed, using fallback BPM:", fallbackBpmValue, error);
+    
+    const beatDuration = 60 / fallbackBpmValue;
+    const beats: number[] = [];
+    
+    // Generate beats at regular intervals
+    let currentTime = 0;
+    while (currentTime < audioBuffer.duration) {
+      beats.push(currentTime);
+      currentTime += beatDuration;
+    }
+
     return {
       metadata: {
         duration: audioBuffer.duration,
-        bpm: 0,
-        totalBeats: 0,
+        bpm: fallbackBpmValue,
+        totalBeats: beats.length,
       },
-      beats: [],
+      beats,
     };
   }
 }

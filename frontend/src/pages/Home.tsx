@@ -352,7 +352,7 @@ export default function Home() {
                 </motion.button>
               </Link> */}
 
-              <Link to="/game" className="flex-1">
+              <Link to="/difficulty" className="flex-1">
                 <motion.button
                   data-testid="button-daily-game"
                   className="w-full bg-gradient-to-r from-neon-magenta/20 to-neon-pink/20 border-2 border-neon-magenta rounded-xl p-6 text-left hover:border-neon-magenta hover:box-glow-magenta transition-all"
